@@ -1,0 +1,3 @@
+-- Stub: DDL will be implemented in T-07.
+-- Owns: initial database schema for receiving_app.
+-- Must not: contain any proprietary names in column or table names.

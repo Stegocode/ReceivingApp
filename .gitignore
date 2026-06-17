@@ -1,0 +1,11 @@
+.env
+build-decisions.md
+__pycache__/
+*.pyc
+*.pyo
+*.db
+*.log
+.pytest_cache/
+dist/
+build/
+*.egg-info/

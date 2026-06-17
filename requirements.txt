@@ -1,0 +1,4 @@
+python-dotenv
+pywin32
+playwright
+selenium
