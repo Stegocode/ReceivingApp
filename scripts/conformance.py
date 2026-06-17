@@ -17,9 +17,7 @@ def fail(gate, msg):
 
 
 def tracked_files():
-    result = subprocess.run(
-        ["git", "ls-files"], capture_output=True, text=True, cwd=ROOT
-    )
+    result = subprocess.run(["git", "ls-files"], capture_output=True, text=True, cwd=ROOT)
     return [Path(p) for p in result.stdout.splitlines() if p]
 
 
@@ -33,12 +31,12 @@ def read(path):
 # ── a. Banned names ───────────────────────────────────────────────────────────
 # Adjacent literals avoid the banned strings appearing literally in this file.
 _ALWAYS_BANNED = [
-    "Bas" "co",        # client name
-    "scott" "t",       # operator username
+    "Bas" + "co",  # client name
+    "scott" + "t",  # operator username
 ]
 _RESTRICTED = {
-    "Home" "Source": "adapters/homesource.py",
-    "Mon" "day": "adapters/monday.py",
+    "Home" + "Source": "adapters/homesource.py",
+    "Mon" + "day": "adapters/monday.py",
 }
 
 
@@ -57,10 +55,10 @@ def gate_a(files):
 # ── b. Absolute paths ─────────────────────────────────────────────────────────
 # Patterns are assembled so the literals don't appear in this source file.
 _ABS_PATTERNS = [
-    "C:" + chr(92),         # Windows backslash-style drive path
-    "C" + ":/",             # Windows forward-slash-style drive path
-    "/" + "Users" + "/",    # macOS home-directory path
-    "/" + "home" + "/",     # Linux home-directory path
+    "C:" + chr(92),  # Windows backslash-style drive path
+    "C" + ":/",  # Windows forward-slash-style drive path
+    "/" + "Users" + "/",  # macOS home-directory path
+    "/" + "home" + "/",  # Linux home-directory path
 ]
 
 
@@ -146,8 +144,7 @@ def gate_f(files):
                 if length > _FN_LINE_LIMIT:
                     fail(
                         "f",
-                        f"{f}:{start}: '{node.name}' is {length} lines"
-                        f" (limit {_FN_LINE_LIMIT})",
+                        f"{f}:{start}: '{node.name}' is {length} lines (limit {_FN_LINE_LIMIT})",
                     )
 
 
@@ -197,11 +194,14 @@ _SQL_KW = re.compile(r"\b(SELECT|INSERT|UPDATE|DELETE)\b", re.IGNORECASE)
 
 
 def _sql_in_fstring(node):
-    """Return True if a JoinedStr (f-string) contains a SQL keyword in any constant part."""
+    """Return True if a JoinedStr contains a SQL keyword in any constant part."""
     for part in ast.walk(node):
-        if isinstance(part, ast.Constant) and isinstance(part.value, str):
-            if _SQL_KW.search(part.value):
-                return True
+        if (
+            isinstance(part, ast.Constant)
+            and isinstance(part.value, str)
+            and _SQL_KW.search(part.value)
+        ):
+            return True
     return False
 
 
@@ -221,14 +221,18 @@ def gate_l(files):
                 fail("l", f"{norm}: f-string contains SQL keyword (use parameterised queries)")
                 break
             # "SELECT ..." % (...) or "SELECT ..." + ...
-            if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Mod, ast.Add)):
-                if (
-                    isinstance(node.left, ast.Constant)
-                    and isinstance(node.left.value, str)
-                    and _SQL_KW.search(node.left.value)
-                ):
-                    fail("l", f"{norm}: %-format or +-concat contains SQL keyword (use parameterised queries)")
-                    break
+            if (
+                isinstance(node, ast.BinOp)
+                and isinstance(node.op, (ast.Mod, ast.Add))
+                and isinstance(node.left, ast.Constant)
+                and isinstance(node.left.value, str)
+                and _SQL_KW.search(node.left.value)
+            ):
+                fail(
+                    "l",
+                    f"{norm}: %-format or +-concat with SQL keyword (use parameterised queries)",
+                )
+                break
             # "SELECT ...".format(...)
             if (
                 isinstance(node, ast.Call)
@@ -244,7 +248,7 @@ def gate_l(files):
 
 # ── m. No Match-Not-Found-Error ───────────────────────────────────────────────
 # Spec: matching returns a status enum, never raises.
-_MATCH_NOT_FOUND = "Match" "NotFoundError"
+_MATCH_NOT_FOUND = "Match" + "NotFoundError"
 
 
 def gate_m(files):
@@ -252,7 +256,14 @@ def gate_m(files):
         if not str(f).endswith(".py"):
             continue
         if _MATCH_NOT_FOUND in read(f):
-            fail("m", f"{str(f).replace(chr(92), '/')}: contains " + _MATCH_NOT_FOUND + " (matching returns a status, never raises)")
+            norm = str(f).replace(chr(92), "/")
+            fail(
+                "m",
+                norm
+                + ": contains "
+                + _MATCH_NOT_FOUND
+                + " (matching returns a status, never raises)",
+            )
 
 
 # ── n. No input() in services/ ────────────────────────────────────────────────
@@ -301,14 +312,37 @@ def gate_o(files):
             if isinstance(node, ast.Assign):
                 for target in node.targets:
                     if isinstance(target, ast.Name) and target.id == "telemetry":
-                        fail("o", f"{norm}: module-level `telemetry =` (metrics injected, not singletons)")
-            elif isinstance(node, ast.AnnAssign):
-                if isinstance(node.target, ast.Name) and node.target.id == "telemetry":
-                    fail("o", f"{norm}: module-level `telemetry =` (metrics injected, not singletons)")
+                        fail(
+                            "o",
+                            f"{norm}: module-level `telemetry =`"
+                            " (metrics injected, not singletons)",
+                        )
+            elif (
+                isinstance(node, ast.AnnAssign)
+                and isinstance(node.target, ast.Name)
+                and node.target.id == "telemetry"
+            ):
+                fail("o", f"{norm}: module-level `telemetry =` (metrics injected, not singletons)")
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
-GATES = [gate_a, gate_b, gate_c, gate_d, gate_e, gate_f, gate_g, gate_h, gate_i, gate_j, gate_k, gate_l, gate_m, gate_n, gate_o]
+GATES = [
+    gate_a,
+    gate_b,
+    gate_c,
+    gate_d,
+    gate_e,
+    gate_f,
+    gate_g,
+    gate_h,
+    gate_i,
+    gate_j,
+    gate_k,
+    gate_l,
+    gate_m,
+    gate_n,
+    gate_o,
+]
 
 
 def main():
