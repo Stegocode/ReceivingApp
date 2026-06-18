@@ -11,34 +11,34 @@ from conformance import banned_name_hit
 # ── exact-case hits ───────────────────────────────────────────────────────────
 
 
-def test_basco_in_content_exact():
+def test_client_name_in_content_exact():
     assert banned_name_hit("Bas" + "co", "client is Bas" + "co appliances", "some/file.py")
 
 
-def test_vendor_in_path_exact():
+def test_source_vendor_name_in_path_exact():
     assert banned_name_hit("Home" + "Source", "", "adapters/home" + "source.py")
 
 
 # ── case-insensitive hits (the regression) ───────────────────────────────────
 
 
-def test_monday_lowercase_in_path():
-    """adapters/monday.py must be caught even though the name is all-lowercase."""
-    assert banned_name_hit("Mon" + "day", "", "adapters/" + "monday.py")
+def test_sink_vendor_name_lowercase_in_path():
+    """Lowercase vendor filename must be caught case-insensitively."""
+    assert banned_name_hit("Mon" + "day", "", "adapters/" + "mon" + "day.py")
 
 
-def test_homesource_lowercase_in_content():
-    """'homesource' in file body must be caught case-insensitively."""
+def test_source_vendor_name_lowercase_in_content():
+    """Lowercase vendor word in file body must be caught case-insensitively."""
     assert banned_name_hit(
         "Home" + "Source", "scrapes home" + "source portal", "adapters/source.py"
     )
 
 
-def test_banned_name_uppercase_in_path():
+def test_sink_vendor_name_uppercase_in_path():
     assert banned_name_hit("Mon" + "day", "", "adapters/MON" + "DAY.py")
 
 
-def test_banned_name_mixed_case_in_content():
+def test_client_name_mixed_case_in_content():
     assert banned_name_hit("Bas" + "co", "BAS" + "CO Appliances", "config.py")
 
 
