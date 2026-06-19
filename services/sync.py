@@ -8,4 +8,6 @@ PARTIAL criteria: success rate >= KILL_THRESHOLD and < 100% — completes, logs 
 KILL criteria:    success rate < KILL_THRESHOLD — raises SyncKillError immediately.
 """
 
+from core.errors import SyncKillError  # noqa: F401 — used when success rate < KILL_THRESHOLD
+
 KILL_THRESHOLD = 0.5

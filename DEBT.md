@@ -14,3 +14,8 @@ Canonical entry point declared as `receiving-app = "__main__:main"` in [project.
 Startup gate added as `tests/test_config.py::test_startup_gate` — calls __main__.main()
 in-process and asserts clean exit. `pythonpath` corrected to [".", "scripts"] so tests
 can import config and core.* alongside conformance.
+
+[DEBT-001] 2026-06-17 — `core/io_helpers.py` (atomic_write) deferred.
+SQLite manages its own durability; no non-DB file-artifact write exists in v1.
+Introduce atomic_write when/if a genuine non-DB file write appears (e.g. an export
+or summary file).
