@@ -3,3 +3,179 @@ Owns: SQLite implementation of the Repository port.
 Must not: import services or other adapters.
 May import: core.ports, core.schema, core.errors, sqlite3, config, json, pathlib.
 """
+# Owns: SQLite implementation of the Repository port.
+# Must not: import services or other adapters.
+# May import: core.ports, core.schema, core.errors, sqlite3, config, json, pathlib.
+
+from __future__ import annotations
+
+import json
+import sqlite3
+from datetime import UTC, datetime
+from pathlib import Path
+
+import config
+from core.errors import RepositoryError
+from core.schema import ReceivingRecord
+
+_SCHEMA_PATH = Path(__file__).parent.parent / "schema" / "0001_init.sql"
+
+
+def _now_iso() -> str:
+    return datetime.now(UTC).isoformat()
+
+
+class SQLiteRepository:
+    """SQLite-backed Repository. Portable to Postgres via ON CONFLICT DO UPDATE."""
+
+    def __init__(self, db_path: Path | None = None) -> None:
+        self._db_path: Path = db_path if db_path is not None else config.DB_PATH
+        self._schema_sql: str = _SCHEMA_PATH.read_text(encoding="utf-8")
+        self._ensure_schema()
+
+    def _connect(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self._db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    def _ensure_schema(self) -> None:
+        try:
+            with sqlite3.connect(self._db_path) as conn:
+                conn.executescript(self._schema_sql)
+        except sqlite3.Error as exc:
+            raise RepositoryError(f"Schema setup failed — {exc}") from exc
+
+    def get_purchase_order(self, po_number: str) -> list[dict]:
+        try:
+            with self._connect() as conn:
+                cur = conn.execute(
+                    "SELECT * FROM po_inventory WHERE purchase_order = ?",
+                    (po_number,),
+                )
+                return [dict(row) for row in cur.fetchall()]
+        except sqlite3.Error as exc:
+            raise RepositoryError(f"get_purchase_order failed — {exc}") from exc
+
+    def upsert_items(self, items: list[dict]) -> None:
+        try:
+            with self._connect() as conn:
+                for item in items:
+                    conn.execute(
+                        """
+                        INSERT INTO po_inventory
+                            (inventory_id, purchase_order, model_number,
+                             description, brand, vendor, tags, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(inventory_id) DO UPDATE SET
+                            purchase_order = excluded.purchase_order,
+                            model_number   = excluded.model_number,
+                            description    = excluded.description,
+                            brand          = excluded.brand,
+                            vendor         = excluded.vendor,
+                            tags           = excluded.tags
+                        """,
+                        (
+                            item["inventory_id"],
+                            item["purchase_order"],
+                            item["model_number"],
+                            item.get("description"),
+                            item.get("brand"),
+                            item.get("vendor"),
+                            item.get("tags"),
+                            item.get("created_at", _now_iso()),
+                        ),
+                    )
+        except sqlite3.Error as exc:
+            raise RepositoryError(f"upsert_items failed — {exc}") from exc
+
+    def save_record(self, record: ReceivingRecord) -> None:
+        """Insert or update a receiving record.
+
+        On conflict (same receiving_id): updates domain columns and updated_at,
+        but never touches emitted or created_at — a re-save cannot un-emit a record.
+        """
+        try:
+            now = _now_iso()
+            with self._connect() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO receiving_items
+                        (receiving_id, purchase_order, inventory_id, model_number,
+                         product_category, truck, stop, sales_order, product_size,
+                         quantity, match_status, timestamp, emitted, created_at,
+                         updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, NULL)
+                    ON CONFLICT(receiving_id) DO UPDATE SET
+                        purchase_order   = excluded.purchase_order,
+                        inventory_id     = excluded.inventory_id,
+                        model_number     = excluded.model_number,
+                        product_category = excluded.product_category,
+                        truck            = excluded.truck,
+                        stop             = excluded.stop,
+                        sales_order      = excluded.sales_order,
+                        product_size     = excluded.product_size,
+                        quantity         = excluded.quantity,
+                        match_status     = excluded.match_status,
+                        timestamp        = excluded.timestamp,
+                        updated_at       = ?
+                    """,
+                    (
+                        record.receiving_id,
+                        record.purchase_order,
+                        record.inventory_id,
+                        record.model_number,
+                        record.product_category,
+                        record.truck,
+                        record.stop,
+                        record.sales_order,
+                        json.dumps(record.product_size),
+                        record.quantity,
+                        record.match_status,
+                        record.timestamp,
+                        now,  # created_at (new rows only)
+                        now,  # updated_at in DO UPDATE
+                    ),
+                )
+        except sqlite3.Error as exc:
+            raise RepositoryError(f"save_record failed — {exc}") from exc
+
+    def get_pending(self) -> list[dict]:
+        try:
+            with self._connect() as conn:
+                cur = conn.execute("SELECT * FROM receiving_items WHERE emitted = 0")
+                rows = []
+                for row in cur.fetchall():
+                    d = dict(row)
+                    if d.get("product_size"):
+                        d["product_size"] = json.loads(d["product_size"])
+                    rows.append(d)
+                return rows
+        except sqlite3.Error as exc:
+            raise RepositoryError(f"get_pending failed — {exc}") from exc
+
+    def mark_emitted(self, receiving_id: str) -> None:
+        try:
+            with self._connect() as conn:
+                cur = conn.execute(
+                    "UPDATE receiving_items SET emitted = 1, updated_at = ? WHERE receiving_id = ?",
+                    (_now_iso(), receiving_id),
+                )
+                if cur.rowcount == 0:
+                    raise RepositoryError(
+                        f"mark_emitted failed — receiving_id '{receiving_id}' not found;"
+                        " commit the record before marking it emitted"
+                    )
+        except sqlite3.Error as exc:
+            raise RepositoryError(f"mark_emitted failed — {exc}") from exc
+
+    def was_emitted(self, receiving_id: str) -> bool:
+        try:
+            with self._connect() as conn:
+                cur = conn.execute(
+                    "SELECT emitted FROM receiving_items WHERE receiving_id = ?",
+                    (receiving_id,),
+                )
+                row = cur.fetchone()
+                return bool(row["emitted"]) if row else False
+        except sqlite3.Error as exc:
+            raise RepositoryError(f"was_emitted failed — {exc}") from exc
