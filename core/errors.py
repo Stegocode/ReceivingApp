@@ -20,4 +20,42 @@ class ConfigError(ReceivingAppError):
     """
 
 
-# T-04 adds: ValidationError, SourceError, SinkError, RepositoryError, SyncKillError.
+class ValidationError(ReceivingAppError):
+    """Record failed schema validation.
+
+    Constraint violated — one or more fields are missing, wrong type, or out
+    of range — fix the data before saving or emitting the record.
+    """
+
+
+class SourceError(ReceivingAppError):
+    """PurchaseOrderSource adapter failure.
+
+    Network or parse failure fetching purchase order data — check source
+    credentials in config and retry; original exception is chained.
+    """
+
+
+class SinkError(ReceivingAppError):
+    """ResultSink adapter failure.
+
+    API call to the result sink failed — check SINK_API_TOKEN and
+    SINK_BOARD_ID in config and retry; original exception is chained.
+    """
+
+
+class RepositoryError(ReceivingAppError):
+    """SQLite Repository adapter failure.
+
+    Database operation failed or a required row was not found — check
+    DB_PATH in config and inspect the database file; original exception
+    is chained where applicable.
+    """
+
+
+class SyncKillError(ReceivingAppError):
+    """Sync loop aborted — error rate exceeded KILL_THRESHOLD.
+
+    Too many items failed in a single sync pass — success rate dropped below
+    the kill threshold. Investigate sink/source errors before retrying.
+    """
