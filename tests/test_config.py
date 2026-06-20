@@ -56,7 +56,7 @@ _VALID_ENV = {
 
 def _reload(monkeypatch, env: dict):
     """Clear all config vars from the environment, apply overrides, reload config."""
-    for var in _REQUIRED_VARS + ["POLL_INTERVAL_SECS"]:
+    for var in _REQUIRED_VARS + ["POLL_INTERVAL_SECS", "SCANNER_TYPE", "PRINTER_TYPE"]:
         monkeypatch.delenv(var, raising=False)
     for k, v in env.items():
         monkeypatch.setenv(k, v)
@@ -117,6 +117,45 @@ def test_raises_config_error_not_bare_exception(monkeypatch):
     cfg = _reload(monkeypatch, {})
     with pytest.raises(ConfigError):
         cfg.validate(dotenv_path=None)
+
+
+def test_scanner_type_defaults_to_wedge(monkeypatch):
+    """SCANNER_TYPE absent — defaults to 'wedge' without error."""
+    env = {k: v for k, v in _VALID_ENV.items() if k != "SCANNER_TYPE"}
+    cfg = _reload(monkeypatch, env)
+    cfg.validate(dotenv_path=None)
+    assert cfg.SCANNER_TYPE == "wedge"
+
+
+def test_scanner_type_manual_accepted(monkeypatch):
+    """SCANNER_TYPE='manual' is a valid value."""
+    cfg = _reload(monkeypatch, {**_VALID_ENV, "SCANNER_TYPE": "manual"})
+    cfg.validate(dotenv_path=None)
+    assert cfg.SCANNER_TYPE == "manual"
+
+
+def test_scanner_type_invalid_raises(monkeypatch):
+    """Invalid SCANNER_TYPE — ConfigError names the var."""
+    cfg = _reload(monkeypatch, {**_VALID_ENV, "SCANNER_TYPE": "usb_hid"})
+    with pytest.raises(ConfigError) as exc:
+        cfg.validate(dotenv_path=None)
+    assert "SCANNER_TYPE" in str(exc.value)
+
+
+def test_printer_type_defaults_to_preview(monkeypatch):
+    """PRINTER_TYPE absent — defaults to 'preview' without error."""
+    env = {k: v for k, v in _VALID_ENV.items() if k != "PRINTER_TYPE"}
+    cfg = _reload(monkeypatch, env)
+    cfg.validate(dotenv_path=None)
+    assert cfg.PRINTER_TYPE == "preview"
+
+
+def test_printer_type_invalid_raises(monkeypatch):
+    """Invalid PRINTER_TYPE — ConfigError names the var."""
+    cfg = _reload(monkeypatch, {**_VALID_ENV, "PRINTER_TYPE": "zebra"})
+    with pytest.raises(ConfigError) as exc:
+        cfg.validate(dotenv_path=None)
+    assert "PRINTER_TYPE" in str(exc.value)
 
 
 def test_startup_gate(monkeypatch, capsys, tmp_path):

@@ -1,11 +1,12 @@
 """
 Owns: port (Protocol) definitions for all adapter boundaries.
 Must not: import adapters or services; must not perform I/O.
-May import: stdlib (typing), core.schema.
+May import: stdlib (typing, collections.abc), core.schema.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Protocol, runtime_checkable
 
 from core.schema import ReceivingRecord
@@ -48,3 +49,26 @@ class ResultSink(Protocol):
 
     def emit(self, record: ReceivingRecord) -> None: ...
     def surface_attention(self, record: ReceivingRecord) -> None: ...
+
+
+@runtime_checkable
+class Scanner(Protocol):
+    """Hardware seam for barcode scanner devices.
+
+    start() begins listening and delivers each scanned string to on_scan.
+    stop() releases the device and must be safe to call more than once.
+    """
+
+    def start(self, on_scan: Callable[[str], None]) -> None: ...
+    def stop(self) -> None: ...
+
+
+@runtime_checkable
+class Printer(Protocol):
+    """Hardware seam for label printers.
+
+    print_label() renders and outputs a receiving label. Raises PrinterError
+    on failure — the record is already saved and can be re-printed.
+    """
+
+    def print_label(self, record: ReceivingRecord) -> None: ...

@@ -30,12 +30,30 @@ SINK_BOARD_ID: str
 SINK_RECEIVED_GROUP_ID: str
 SINK_NO_MATCH_GROUP_ID: str
 SINK_ATTENTION_GROUP_ID: str
+SCANNER_TYPE: str
+PRINTER_TYPE: str
 
 
 def _require(name: str, problems: list[str]) -> str:
     val = os.environ.get(name, "").strip()
     if not val:
         problems.append(f"  {name} — required but not set. See .env.example for description.")
+    return val
+
+
+def _read_poll_interval(problems: list[str]) -> int:
+    raw = os.environ.get("POLL_INTERVAL_SECS", "10").strip()
+    try:
+        return int(raw)
+    except ValueError:
+        problems.append(f"  POLL_INTERVAL_SECS — must be an integer, got '{raw}'.")
+        return 10  # placeholder; not used if we raise
+
+
+def _validate_choice(name: str, default: str, allowed: set[str], problems: list[str]) -> str:
+    val = os.environ.get(name, default).strip()
+    if val not in allowed:
+        problems.append(f"  {name} — got '{val}', must be one of {sorted(allowed)}.")
     return val
 
 
@@ -53,6 +71,7 @@ def validate(dotenv_path: Path | str | None = Path(".env")) -> None:
     global SOURCE_BASE_URL, SOURCE_USERNAME, SOURCE_PASSWORD
     global SINK_BASE_URL, SINK_API_TOKEN, SINK_BOARD_ID
     global SINK_RECEIVED_GROUP_ID, SINK_NO_MATCH_GROUP_ID, SINK_ATTENTION_GROUP_ID
+    global SCANNER_TYPE, PRINTER_TYPE
 
     if dotenv_path is not None:
         load_dotenv(dotenv_path=dotenv_path, override=False)
@@ -72,12 +91,9 @@ def validate(dotenv_path: Path | str | None = Path(".env")) -> None:
     sink_no_match_group_id = _require("SINK_NO_MATCH_GROUP_ID", problems)
     sink_attention_group_id = _require("SINK_ATTENTION_GROUP_ID", problems)
 
-    poll_raw = os.environ.get("POLL_INTERVAL_SECS", "10").strip()
-    try:
-        poll_interval = int(poll_raw)
-    except ValueError:
-        problems.append(f"  POLL_INTERVAL_SECS — must be an integer, got '{poll_raw}'.")
-        poll_interval = 10  # placeholder; not assigned below if we raise
+    poll_interval = _read_poll_interval(problems)
+    scanner_type = _validate_choice("SCANNER_TYPE", "wedge", {"wedge", "manual"}, problems)
+    printer_type = _validate_choice("PRINTER_TYPE", "preview", {"preview"}, problems)
 
     if problems:
         raise ConfigError(
@@ -97,3 +113,5 @@ def validate(dotenv_path: Path | str | None = Path(".env")) -> None:
     SINK_RECEIVED_GROUP_ID = sink_received_group_id
     SINK_NO_MATCH_GROUP_ID = sink_no_match_group_id
     SINK_ATTENTION_GROUP_ID = sink_attention_group_id
+    SCANNER_TYPE = scanner_type
+    PRINTER_TYPE = printer_type

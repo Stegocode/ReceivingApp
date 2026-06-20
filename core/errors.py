@@ -59,3 +59,11 @@ class SyncKillError(ReceivingAppError):
     Too many items failed in a single sync pass — success rate dropped below
     the kill threshold. Investigate sink/source errors before retrying.
     """
+
+
+class PrinterError(ReceivingAppError):
+    """Label printer failure.
+
+    Raised when print_label fails — check the printer connection and paper
+    supply. The record is already saved and can be re-printed.
+    """
