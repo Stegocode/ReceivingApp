@@ -9,7 +9,6 @@ not_measured: real board API calls, real group mutations, rate-limiting behavior
               See DEBT.md [DEBT-T09-001].
 """
 
-import json
 import logging
 from unittest.mock import MagicMock
 
@@ -246,9 +245,7 @@ def test_adapter_emit_writes_before_and_after_audit_entries(
     assert any('"stage": "after"' in m for m in messages)
 
 
-def test_adapter_noop_produces_no_audit_entries(
-    monkeypatch, caplog: pytest.LogCaptureFixture
-):
+def test_adapter_noop_produces_no_audit_entries(monkeypatch, caplog: pytest.LogCaptureFixture):
     """Second emit with same receiving_id must produce zero log entries."""
     adapter = _make_adapter()
     monkeypatch.setattr("adapters.sink.requests.post", lambda *a, **kw: _ok_response())
@@ -263,9 +260,7 @@ def test_adapter_noop_produces_no_audit_entries(
     assert count_after_second == 2  # no new entries on no-op
 
 
-def test_adapter_audit_entry_contains_receiving_id(
-    monkeypatch, caplog: pytest.LogCaptureFixture
-):
+def test_adapter_audit_entry_contains_receiving_id(monkeypatch, caplog: pytest.LogCaptureFixture):
     adapter = _make_adapter()
     monkeypatch.setattr("adapters.sink.requests.post", lambda *a, **kw: _ok_response())
 
