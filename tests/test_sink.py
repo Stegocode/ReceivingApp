@@ -213,6 +213,21 @@ def test_adapter_graphql_errors_raises_sink_error(monkeypatch):
         adapter.emit(_make_record("rid-001", "received"))
 
 
+def test_adapter_non2xx_response_raises_sink_error_with_cause(monkeypatch):
+    """raise_for_status on a non-2xx status must surface as SinkError with HTTPError chained."""
+    import requests as req_lib
+
+    adapter = _make_adapter()
+    http_error = req_lib.HTTPError("500 Server Error")
+    resp = MagicMock()
+    resp.raise_for_status.side_effect = http_error
+
+    monkeypatch.setattr("adapters.sink.requests.post", lambda *a, **kw: resp)
+    with pytest.raises(SinkError) as exc_info:
+        adapter.emit(_make_record("rid-001", "received"))
+    assert exc_info.value.__cause__ is http_error
+
+
 # ── ResultSinkAdapter — audit logging ────────────────────────────────────────
 
 
