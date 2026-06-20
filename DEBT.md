@@ -47,3 +47,17 @@ The oracle captures debug screenshots on key steps. The port omits this to avoid
 hardcoding a screenshot directory path. Add screenshot capture when a SCREENSHOT_DIR
 config var is introduced (T-12 observability ticket).
 Trigger: T-12 adds LOG_DIR-relative screenshot path to config.
+
+[DEBT-T09-001] 2026-06-19 — `adapters/sink.py` is PORTED but live-untested.
+CI has no real API token, no live board, and no real group IDs. The entire API
+pipeline is mocked in tests. Validate the following against the live board before
+declaring T-09 DONE:
+  - SINK_BASE_URL, SINK_BOARD_ID, SINK_RECEIVED_GROUP_ID, SINK_NO_MATCH_GROUP_ID,
+    SINK_ATTENTION_GROUP_ID — populate from the oracle project .env (the sink API
+    token, board ID, and group IDs from the oracle's result-sink client module).
+  - Column IDs (_STATUS_COL, _INVENTORY_ID_COL, _MODEL_COL) — confirm still
+    valid against the live board schema.
+  - Verify that create_item with column_values JSON is accepted by the board API
+    and items land in the expected groups.
+Trigger: before T-09 is considered production-ready; run with real credentials in a
+local .env pointing at the live board.

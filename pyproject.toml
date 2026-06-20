@@ -12,6 +12,7 @@ dependencies = [
     "pywin32; sys_platform == 'win32'",
     "playwright",
     "selenium",
+    "requests",
 ]
 
 [project.optional-dependencies]

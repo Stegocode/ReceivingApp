@@ -29,8 +29,11 @@ _REQUIRED_VARS = [
     "SOURCE_BASE_URL",
     "SOURCE_USERNAME",
     "SOURCE_PASSWORD",
+    "SINK_BASE_URL",
     "SINK_API_TOKEN",
     "SINK_BOARD_ID",
+    "SINK_RECEIVED_GROUP_ID",
+    "SINK_NO_MATCH_GROUP_ID",
     "SINK_ATTENTION_GROUP_ID",
 ]
 
@@ -41,8 +44,11 @@ _VALID_ENV = {
     "SOURCE_BASE_URL": "https://portal.example",
     "SOURCE_USERNAME": "testuser",
     "SOURCE_PASSWORD": "testpass",
+    "SINK_BASE_URL": "https://api.example.com/v2",
     "SINK_API_TOKEN": "testtoken",
     "SINK_BOARD_ID": "board123",
+    "SINK_RECEIVED_GROUP_ID": "grp_recv",
+    "SINK_NO_MATCH_GROUP_ID": "grp_nm",
     "SINK_ATTENTION_GROUP_ID": "group123",
     "POLL_INTERVAL_SECS": "10",
 }

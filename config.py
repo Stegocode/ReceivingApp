@@ -24,8 +24,11 @@ POLL_INTERVAL_SECS: int
 SOURCE_BASE_URL: str
 SOURCE_USERNAME: str
 SOURCE_PASSWORD: str
+SINK_BASE_URL: str
 SINK_API_TOKEN: str
 SINK_BOARD_ID: str
+SINK_RECEIVED_GROUP_ID: str
+SINK_NO_MATCH_GROUP_ID: str
 SINK_ATTENTION_GROUP_ID: str
 
 
@@ -48,7 +51,8 @@ def validate(dotenv_path: Path | str | None = Path(".env")) -> None:
     """
     global DB_PATH, LOG_DIR, DOWNLOAD_DIR, POLL_INTERVAL_SECS
     global SOURCE_BASE_URL, SOURCE_USERNAME, SOURCE_PASSWORD
-    global SINK_API_TOKEN, SINK_BOARD_ID, SINK_ATTENTION_GROUP_ID
+    global SINK_BASE_URL, SINK_API_TOKEN, SINK_BOARD_ID
+    global SINK_RECEIVED_GROUP_ID, SINK_NO_MATCH_GROUP_ID, SINK_ATTENTION_GROUP_ID
 
     if dotenv_path is not None:
         load_dotenv(dotenv_path=dotenv_path, override=False)
@@ -61,8 +65,11 @@ def validate(dotenv_path: Path | str | None = Path(".env")) -> None:
     source_base_url = _require("SOURCE_BASE_URL", problems)
     source_username = _require("SOURCE_USERNAME", problems)
     source_password = _require("SOURCE_PASSWORD", problems)  # noqa: S105
+    sink_base_url = _require("SINK_BASE_URL", problems)
     sink_api_token = _require("SINK_API_TOKEN", problems)
     sink_board_id = _require("SINK_BOARD_ID", problems)
+    sink_received_group_id = _require("SINK_RECEIVED_GROUP_ID", problems)
+    sink_no_match_group_id = _require("SINK_NO_MATCH_GROUP_ID", problems)
     sink_attention_group_id = _require("SINK_ATTENTION_GROUP_ID", problems)
 
     poll_raw = os.environ.get("POLL_INTERVAL_SECS", "10").strip()
@@ -84,6 +91,9 @@ def validate(dotenv_path: Path | str | None = Path(".env")) -> None:
     SOURCE_BASE_URL = source_base_url
     SOURCE_USERNAME = source_username
     SOURCE_PASSWORD = source_password
+    SINK_BASE_URL = sink_base_url
     SINK_API_TOKEN = sink_api_token
     SINK_BOARD_ID = sink_board_id
+    SINK_RECEIVED_GROUP_ID = sink_received_group_id
+    SINK_NO_MATCH_GROUP_ID = sink_no_match_group_id
     SINK_ATTENTION_GROUP_ID = sink_attention_group_id
