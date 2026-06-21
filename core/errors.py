@@ -75,3 +75,12 @@ class ScannerError(ReceivingAppError):
     Raised by make_scanner when an unknown scanner_type is requested — set
     SCANNER_TYPE to a supported value (wedge, manual) in .env and restart.
     """
+
+
+class BoardError(ReceivingAppError):
+    """Receiving board read or move failure.
+
+    Raised by board adapter operations — check SINK_BOARD_ID, group IDs,
+    and API token in config and retry; original exception is chained where
+    applicable.
+    """

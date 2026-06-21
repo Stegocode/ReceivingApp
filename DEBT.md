@@ -61,6 +61,22 @@ The full running-app flow with SOURCE_TYPE=fake + SINK_TYPE=null has not been ex
 with a real UI session. Validate manually before relying on dev mode for onboarding or training.
 Trigger: before dev mode is used as the default training environment.
 
+[DEBT-T12-001] 2026-06-21 — `adapters/board.py` (BoardApiAdapter) is PORTED but live-untested.
+CI has no real API token, no live board, and no real group or column IDs. The entire API
+pipeline is mocked in tests. Validate the following against the live board before
+declaring T-12 DONE:
+  - SINK_BOARD_ID, SINK_READY_GROUP_ID, SINK_RECEIVED_GROUP_ID, SINK_NO_MATCH_GROUP_ID —
+    populate from the live board configuration.
+  - SINK_INVENTORY_ID_COL, SINK_MODEL_COL, SINK_SERIAL_COL, SINK_STATUS_COL — confirm
+    column IDs still valid against the current live board schema.
+  - Verify poll_ready pagination: confirm cursor is returned and followed correctly when
+    the READY group contains more than 500 items.
+  - Verify mark_received: confirm move_item_to_group succeeds and change_column_value
+    sets the status column to RECEIVED in the live board.
+  - Verify mark_no_match: confirm move_item_to_group moves the item to the NO MATCH group.
+Trigger: before T-13 (receive executor) is wired to a live board; run with real
+credentials in a local .env pointing at the live board.
+
 [DEBT-T09-001] 2026-06-19 — `adapters/sink.py` is PORTED but live-untested.
 CI has no real API token, no live board, and no real group IDs. The entire API
 pipeline is mocked in tests. Validate the following against the live board before
