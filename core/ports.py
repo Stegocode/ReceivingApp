@@ -72,3 +72,27 @@ class Printer(Protocol):
     """
 
     def print_label(self, record: ReceivingRecord) -> None: ...
+
+
+@runtime_checkable
+class ReceivingBoard(Protocol):
+    """Board port — bidirectional interface to the receiving status board.
+
+    poll_ready() returns all items in the READY group. Each dict contains:
+        item_id:      str — board item identifier
+        po_number:    str — purchase order number (the item's name field)
+        inventory_id: str — inventory system identifier
+        model:        str — model number or description
+        serial:       str — serial number or barcode
+
+    mark_received(item_id) moves the item to the RECEIVED group and sets
+    the status column value to RECEIVED.
+
+    mark_no_match(item_id) moves the item to the NO MATCH group.
+
+    Any network, parse, or API failure raises BoardError.
+    """
+
+    def poll_ready(self) -> list[dict]: ...
+    def mark_received(self, item_id: str) -> None: ...
+    def mark_no_match(self, item_id: str) -> None: ...

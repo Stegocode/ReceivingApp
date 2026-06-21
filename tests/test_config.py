@@ -35,6 +35,11 @@ _REQUIRED_VARS = [
     "SINK_RECEIVED_GROUP_ID",
     "SINK_NO_MATCH_GROUP_ID",
     "SINK_ATTENTION_GROUP_ID",
+    "SINK_READY_GROUP_ID",
+    "SINK_INVENTORY_ID_COL",
+    "SINK_MODEL_COL",
+    "SINK_SERIAL_COL",
+    "SINK_STATUS_COL",
 ]
 
 _VALID_ENV = {
@@ -46,10 +51,15 @@ _VALID_ENV = {
     "SOURCE_PASSWORD": "testpass",
     "SINK_BASE_URL": "https://api.example.com/v2",
     "SINK_API_TOKEN": "testtoken",
-    "SINK_BOARD_ID": "board123",
+    "SINK_BOARD_ID": "board-test",
     "SINK_RECEIVED_GROUP_ID": "grp_recv",
     "SINK_NO_MATCH_GROUP_ID": "grp_nm",
-    "SINK_ATTENTION_GROUP_ID": "group123",
+    "SINK_ATTENTION_GROUP_ID": "grp_att",
+    "SINK_READY_GROUP_ID": "grp_ready",
+    "SINK_INVENTORY_ID_COL": "col_inv",
+    "SINK_MODEL_COL": "col_model",
+    "SINK_SERIAL_COL": "col_serial",
+    "SINK_STATUS_COL": "col_status",
     "POLL_INTERVAL_SECS": "10",
 }
 
@@ -249,6 +259,22 @@ def test_build_app_creates_missing_dirs(monkeypatch, tmp_path):
     assert (tmp_path / "db").exists()
     assert (tmp_path / "logs").exists()
     assert (tmp_path / "downloads").exists()
+
+
+def test_sink_ready_group_id_blank_raises(monkeypatch):
+    """SINK_READY_GROUP_ID='' (blank) — treated as absent, ConfigError raised."""
+    cfg = _reload(monkeypatch, {**_VALID_ENV, "SINK_READY_GROUP_ID": ""})
+    with pytest.raises(ConfigError) as exc:
+        cfg.validate(dotenv_path=None)
+    assert "SINK_READY_GROUP_ID" in str(exc.value)
+
+
+def test_board_column_id_blank_raises(monkeypatch):
+    """SINK_STATUS_COL='' (blank) — treated as absent, ConfigError raised."""
+    cfg = _reload(monkeypatch, {**_VALID_ENV, "SINK_STATUS_COL": ""})
+    with pytest.raises(ConfigError) as exc:
+        cfg.validate(dotenv_path=None)
+    assert "SINK_STATUS_COL" in str(exc.value)
 
 
 def test_startup_gate(monkeypatch, tmp_path):

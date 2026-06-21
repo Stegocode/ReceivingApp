@@ -31,6 +31,11 @@ SINK_BOARD_ID: str
 SINK_RECEIVED_GROUP_ID: str
 SINK_NO_MATCH_GROUP_ID: str
 SINK_ATTENTION_GROUP_ID: str
+SINK_READY_GROUP_ID: str
+SINK_INVENTORY_ID_COL: str
+SINK_MODEL_COL: str
+SINK_SERIAL_COL: str
+SINK_STATUS_COL: str
 SCANNER_TYPE: str
 PRINTER_TYPE: str
 SOURCE_TYPE: str  # "portal" | "fake"
@@ -70,6 +75,26 @@ def _read_optional_str(name: str, default: str) -> str:
     return raw if raw else default
 
 
+def _read_sink_group_ids(problems: list[str]) -> tuple[str, str, str, str]:
+    """Read the four SINK group ID vars; all are required."""
+    return (
+        _require("SINK_RECEIVED_GROUP_ID", problems),
+        _require("SINK_NO_MATCH_GROUP_ID", problems),
+        _require("SINK_ATTENTION_GROUP_ID", problems),
+        _require("SINK_READY_GROUP_ID", problems),
+    )
+
+
+def _read_board_columns(problems: list[str]) -> tuple[str, str, str, str]:
+    """Read the four board column ID vars; all are required."""
+    return (
+        _require("SINK_INVENTORY_ID_COL", problems),
+        _require("SINK_MODEL_COL", problems),
+        _require("SINK_SERIAL_COL", problems),
+        _require("SINK_STATUS_COL", problems),
+    )
+
+
 def validate(dotenv_path: Path | str | None = Path(".env")) -> None:
     """Check all required vars in one pass; raise ConfigError listing every problem.
 
@@ -83,7 +108,9 @@ def validate(dotenv_path: Path | str | None = Path(".env")) -> None:
     global DB_PATH, LOG_DIR, DOWNLOAD_DIR, POLL_INTERVAL_SECS
     global SOURCE_BASE_URL, SOURCE_USERNAME, SOURCE_PASSWORD
     global SINK_BASE_URL, SINK_API_TOKEN, SINK_BOARD_ID
-    global SINK_RECEIVED_GROUP_ID, SINK_NO_MATCH_GROUP_ID, SINK_ATTENTION_GROUP_ID
+    global SINK_RECEIVED_GROUP_ID, SINK_NO_MATCH_GROUP_ID
+    global SINK_ATTENTION_GROUP_ID, SINK_READY_GROUP_ID
+    global SINK_INVENTORY_ID_COL, SINK_MODEL_COL, SINK_SERIAL_COL, SINK_STATUS_COL
     global SCANNER_TYPE, PRINTER_TYPE
     global SOURCE_TYPE, SINK_TYPE, FAKE_SOURCE_DATA
 
@@ -101,9 +128,18 @@ def validate(dotenv_path: Path | str | None = Path(".env")) -> None:
     sink_base_url = _require("SINK_BASE_URL", problems)
     sink_api_token = _require("SINK_API_TOKEN", problems)
     sink_board_id = _require("SINK_BOARD_ID", problems)
-    sink_received_group_id = _require("SINK_RECEIVED_GROUP_ID", problems)
-    sink_no_match_group_id = _require("SINK_NO_MATCH_GROUP_ID", problems)
-    sink_attention_group_id = _require("SINK_ATTENTION_GROUP_ID", problems)
+    (
+        sink_received_group_id,
+        sink_no_match_group_id,
+        sink_attention_group_id,
+        sink_ready_group_id,
+    ) = _read_sink_group_ids(problems)
+    (
+        sink_inventory_id_col,
+        sink_model_col,
+        sink_serial_col,
+        sink_status_col,
+    ) = _read_board_columns(problems)
 
     poll_interval = _read_poll_interval(problems)
     scanner_type = _validate_choice("SCANNER_TYPE", "wedge", {"wedge", "manual"}, problems)
@@ -127,9 +163,18 @@ def validate(dotenv_path: Path | str | None = Path(".env")) -> None:
     SINK_BASE_URL = sink_base_url
     SINK_API_TOKEN = sink_api_token
     SINK_BOARD_ID = sink_board_id
-    SINK_RECEIVED_GROUP_ID = sink_received_group_id
-    SINK_NO_MATCH_GROUP_ID = sink_no_match_group_id
-    SINK_ATTENTION_GROUP_ID = sink_attention_group_id
+    (
+        SINK_RECEIVED_GROUP_ID,
+        SINK_NO_MATCH_GROUP_ID,
+        SINK_ATTENTION_GROUP_ID,
+        SINK_READY_GROUP_ID,
+    ) = sink_received_group_id, sink_no_match_group_id, sink_attention_group_id, sink_ready_group_id
+    SINK_INVENTORY_ID_COL, SINK_MODEL_COL, SINK_SERIAL_COL, SINK_STATUS_COL = (
+        sink_inventory_id_col,
+        sink_model_col,
+        sink_serial_col,
+        sink_status_col,
+    )
     SCANNER_TYPE = scanner_type
     PRINTER_TYPE = printer_type
     SOURCE_TYPE = source_type
