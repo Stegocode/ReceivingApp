@@ -75,6 +75,28 @@ class Printer(Protocol):
 
 
 @runtime_checkable
+class ReceivingExecutor(Protocol):
+    """Executor port — drives the portal receiving wizard for one inventory unit.
+
+    receive_item returns exactly one of:
+        "received"       — wizard completed; item is now received in the portal.
+        "not_found"      — PO not reachable, model row absent, or serial input missing.
+        "finalize_error" — portal reported an error on the finalize step.
+
+    `model` is required because the portal receiving grid contains no inventory IDs;
+    rows are matched by model string. Any UNEXPECTED failure raises ExecutorError so
+    callers can count it and may trip a kill threshold; the expected three outcomes are
+    returned, never raised.
+
+    close() releases the browser session. Safe to call when no session was started.
+    """
+
+    def receive_item(self, po_number: str, inventory_id: str, model: str, serial: str) -> str: ...
+
+    def close(self) -> None: ...
+
+
+@runtime_checkable
 class ReceivingBoard(Protocol):
     """Board port — bidirectional interface to the receiving status board.
 

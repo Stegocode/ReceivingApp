@@ -41,6 +41,10 @@ PRINTER_TYPE: str
 SOURCE_TYPE: str  # "portal" | "fake"
 SINK_TYPE: str  # "graphql" | "null"
 FAKE_SOURCE_DATA: Path
+RECEIVER_TYPE: str  # "portal" | "fake"
+RECEIVE_LOCATION: str
+RECEIVE_WHSE_LOCATION: str
+RECEIVE_SCREENSHOT_DIR: Path
 
 
 def _require(name: str, problems: list[str]) -> str:
@@ -95,6 +99,16 @@ def _read_board_columns(problems: list[str]) -> tuple[str, str, str, str]:
     )
 
 
+def _read_receiver_config(problems: list[str]) -> tuple[str, str, str, str]:
+    """Read RECEIVER_TYPE (choice) and the three optional RECEIVE_* vars."""
+    return (
+        _validate_choice("RECEIVER_TYPE", "portal", {"portal", "fake"}, problems),
+        _read_optional_str("RECEIVE_LOCATION", ""),
+        _read_optional_str("RECEIVE_WHSE_LOCATION", ""),
+        _read_optional_str("RECEIVE_SCREENSHOT_DIR", ""),
+    )
+
+
 def validate(dotenv_path: Path | str | None = Path(".env")) -> None:
     """Check all required vars in one pass; raise ConfigError listing every problem.
 
@@ -113,6 +127,7 @@ def validate(dotenv_path: Path | str | None = Path(".env")) -> None:
     global SINK_INVENTORY_ID_COL, SINK_MODEL_COL, SINK_SERIAL_COL, SINK_STATUS_COL
     global SCANNER_TYPE, PRINTER_TYPE
     global SOURCE_TYPE, SINK_TYPE, FAKE_SOURCE_DATA
+    global RECEIVER_TYPE, RECEIVE_LOCATION, RECEIVE_WHSE_LOCATION, RECEIVE_SCREENSHOT_DIR
 
     if dotenv_path is not None:
         load_dotenv(dotenv_path=dotenv_path, override=False)
@@ -147,6 +162,12 @@ def validate(dotenv_path: Path | str | None = Path(".env")) -> None:
     source_type = _validate_choice("SOURCE_TYPE", "portal", {"portal", "fake"}, problems)
     sink_type = _validate_choice("SINK_TYPE", "graphql", {"graphql", "null"}, problems)
     fake_data_raw = _read_optional_str("FAKE_SOURCE_DATA", "test_data/pos.json")
+    (
+        receiver_type,
+        receive_location,
+        receive_whse_location,
+        receive_screenshot_raw,
+    ) = _read_receiver_config(problems)
 
     if problems:
         raise ConfigError(
@@ -175,8 +196,18 @@ def validate(dotenv_path: Path | str | None = Path(".env")) -> None:
         sink_serial_col,
         sink_status_col,
     )
-    SCANNER_TYPE = scanner_type
-    PRINTER_TYPE = printer_type
-    SOURCE_TYPE = source_type
-    SINK_TYPE = sink_type
+    (SCANNER_TYPE, PRINTER_TYPE, SOURCE_TYPE, SINK_TYPE) = (
+        scanner_type,
+        printer_type,
+        source_type,
+        sink_type,
+    )
     FAKE_SOURCE_DATA = Path(fake_data_raw)
+    (RECEIVER_TYPE, RECEIVE_LOCATION, RECEIVE_WHSE_LOCATION) = (
+        receiver_type,
+        receive_location,
+        receive_whse_location,
+    )
+    RECEIVE_SCREENSHOT_DIR = (
+        Path(receive_screenshot_raw) if receive_screenshot_raw else LOG_DIR / "screenshots"
+    )
