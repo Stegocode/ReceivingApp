@@ -14,3 +14,7 @@ dist/
 build/
 *.egg-info/
 .venv/
+.coverage
+htmlcov/
+mutants/
+.mutmut-cache
