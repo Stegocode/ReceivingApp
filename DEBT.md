@@ -142,8 +142,10 @@ multi-writer access, a Postgres adapter behind the same port is needed.
 Trigger: dataset outgrows SQLite, multi-writer access is required, or production moves to a
 managed database (e.g. Neon Postgres).
 
-[DEBT-T15-004] 2026-06-21 — Mixed log-call styles across adapters.
+[DEBT-T15-004] 2026-06-21 — Mixed log-call styles across adapters (cosmetic only).
 Three styles coexist: extra={} (receiver.py), %-format strings (receive_sync.py), and
-logger.info(json.dumps({...})) (sink.py, board.py). All are functionally correct and visible
-at INFO. Standardize on one structured style (extra={} or json.dumps) in a future cleanup.
+logger.info(json.dumps({...})) (sink.py, board.py). All styles are now fully rendered in the
+log file: _ContextFormatter appends extra={} fields as key=value pairs, and json.dumps strings
+appear verbatim in the message. The gap is cosmetic (inconsistent call convention), not functional.
+Standardize on one structured style (extra={} preferred) in a future cleanup pass.
 Trigger: adding a log aggregator or formatter that expects one call convention.
