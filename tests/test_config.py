@@ -257,7 +257,9 @@ def test_build_app_creates_missing_dirs(monkeypatch, tmp_path):
     cfg = _reload(monkeypatch, env)
     real_validate = cfg.validate
     monkeypatch.setattr(cfg, "validate", lambda: real_validate(dotenv_path=None))
-    spec = importlib.util.spec_from_file_location("app_main", PROJECT_ROOT / "__main__.py")
+    spec = importlib.util.spec_from_file_location(
+        "scanner_runner", PROJECT_ROOT / "scanner_runner.py"
+    )
     app_main = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(app_main)
     app_main.build_app()
@@ -342,8 +344,9 @@ def test_startup_gate(monkeypatch, tmp_path):
     real_validate = cfg.validate
     # Bypass .env file loading — env vars already set via monkeypatch.
     monkeypatch.setattr(cfg, "validate", lambda: real_validate(dotenv_path=None))
-    # Load __main__.py by file path to avoid collision with pytest's own __main__.
-    spec = importlib.util.spec_from_file_location("app_main", PROJECT_ROOT / "__main__.py")
+    spec = importlib.util.spec_from_file_location(
+        "scanner_runner", PROJECT_ROOT / "scanner_runner.py"
+    )
     app_main = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(app_main)
     from adapters.ui.scanner_ui import ReceivingUI

@@ -1,5 +1,6 @@
 """
-Owns: application entry point and composition root — wires all adapters together.
+Owns: scanner/receiving application entry point — wire all adapters from config,
+      launch the receiving UI.
 Must not: contain business logic; must not read environment variables directly;
           must not import tkinter.
 May import: config, core.logging_setup, adapters.db, adapters.printer, adapters.sink,
