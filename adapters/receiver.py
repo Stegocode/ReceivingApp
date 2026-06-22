@@ -1,7 +1,7 @@
 # Owns: PortalReceiver, FakeReceiver, make_receiver().
-# Must not: import services or other adapters; must not read environment variables directly.
+# Must not: import services or adapter behaviour modules; must not read env vars directly.
 # May import: core.errors, core.matching, core.ports (ReceiveOutcome),
-#             playwright, logging, time, pathlib.
+#             adapters.portal_dom, playwright, logging, time, pathlib.
 #
 # PortalReceiver is PORTED but live-untested — see DEBT.md [DEBT-T13-001].
 
@@ -22,58 +22,12 @@ from playwright.sync_api import (
     sync_playwright,
 )
 
+from adapters import portal_dom
 from core.errors import ExecutorError
 from core.matching import match_score, normalize
 from core.ports import ReceiveOutcome
 
 _log = logging.getLogger(__name__)
-
-# Timing constants (seconds) — require live validation against the portal.
-_NAV_SETTLE_SECS = 2.0
-_LOCATION_SETTLE_SECS = 3.0
-_WHSE_SETTLE_SECS = 1.5
-_QTY_SETTLE_SECS = 0.5
-_SERIAL_SETTLE_SECS = 0.5
-_REVIEW_SETTLE_SECS = 2.0
-_FINALIZE_SETTLE_SECS = 3.0
-_GRID_PAGE_SETTLE_SECS = 1.5
-
-# Grid column positions (confirmed from live screenshots, June 2026).
-_MODEL_COL = 3
-_TBR_COL = 7
-_QTY_COL = 8
-
-_GRID_ROW_TIMEOUT_MS = 8_000
-_RECEIVE_URL_TIMEOUT_MS = 15_000
-_MAX_GRID_PAGES = 10
-
-_USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-)
-_NEXT_BTN_SELECTOR = (
-    ".k-pager-wrap a.k-next-button, "
-    ".k-grid-pager a[aria-label*='next' i], "
-    ".k-grid-pager .k-i-arrow-e"
-)
-
-# Inline JS — portal-specific; none are domain names or credentials.
-_READ_OPTIONS_JS = (
-    "(sel) => { const s=document.querySelector(sel); if(!s) return [];"
-    " return Array.from(s.options).map(o=>({value:o.value,text:o.text})); }"
-)
-_KENDO_SET_JS = (
-    "(a) => { const s=document.querySelector(a.selector); if(!s) return; s.value=a.value;"
-    " if(typeof $!=='undefined'){const w=$(s).data('kendoDropDownList');"
-    " if(w){w.value(a.value);w.trigger('change');return;}}"
-    " s.dispatchEvent(new Event('change',{bubbles:true})); }"
-)
-_QTY_SET_JS = "el=>{el.value='1';el.dispatchEvent(new Event('change',{bubbles:true}));}"
-_FINALIZE_CHECK_JS = (
-    "()=>{const as=document.querySelectorAll('.alert-danger,.alert.alert-error');"
-    " for(const a of as) if(a.offsetParent!==null&&(a.textContent||'').trim().length>0)"
-    " return a.textContent.trim(); return '';}"
-)
 
 
 def _model_matches(target: str, cell_text: str) -> bool:
@@ -138,7 +92,7 @@ class PortalReceiver:
         try:
             self._browser = self._pw.chromium.launch(headless=self._headless)
             self._context = self._browser.new_context(
-                user_agent=_USER_AGENT, viewport={"width": 1920, "height": 1080}
+                user_agent=portal_dom.USER_AGENT, viewport={"width": 1920, "height": 1080}
             )
             self._page = self._context.new_page()
             self._login(self._page)
@@ -163,28 +117,28 @@ class PortalReceiver:
             self._pw = None
 
     def _find_model_row(self, page: Page, model: str) -> ElementHandle | None:
-        """Scan the Kendo grid (paginated, up to _MAX_GRID_PAGES) for model with TBR > 0."""
+        """Scan the Kendo grid (paginated, up to MAX_GRID_PAGES) for model with TBR > 0."""
         try:
-            page.wait_for_selector("tr.k-master-row", timeout=_GRID_ROW_TIMEOUT_MS)
+            page.wait_for_selector("tr.k-master-row", timeout=portal_dom.GRID_ROW_TIMEOUT_MS)
         except Exception:
             _log.warning("receiver.grid.no_rows model=%s", model)
-        for _ in range(_MAX_GRID_PAGES):
+        for _ in range(portal_dom.MAX_GRID_PAGES):
             for row in page.query_selector_all("tr.k-master-row"):
                 cells = row.query_selector_all("td")
-                if len(cells) <= _MODEL_COL:
+                if len(cells) <= portal_dom.MODEL_COL:
                     continue
-                model_text = (cells[_MODEL_COL].inner_text() or "").strip()
+                model_text = (cells[portal_dom.MODEL_COL].inner_text() or "").strip()
                 if not _model_matches(model, model_text):
                     continue
                 tbr = 0
-                if len(cells) > _TBR_COL:
+                if len(cells) > portal_dom.TBR_COL:
                     with suppress(ValueError, TypeError):
-                        tbr = int((cells[_TBR_COL].inner_text() or "").strip())
+                        tbr = int((cells[portal_dom.TBR_COL].inner_text() or "").strip())
                 if tbr > 0:
                     _log.info("receiver.grid.matched model=%s tbr=%d", model_text, tbr)
                     return row
             try:
-                nxt = page.locator(_NEXT_BTN_SELECTOR).first
+                nxt = page.locator(portal_dom.NEXT_BTN_SELECTOR).first
                 if not nxt.is_visible(timeout=1000):
                     break
             except Exception:
@@ -194,7 +148,7 @@ class PortalReceiver:
             if (nxt.get_attribute("aria-disabled") or "").lower() == "true":
                 break
             nxt.click()
-            time.sleep(_GRID_PAGE_SETTLE_SECS)
+            time.sleep(portal_dom.GRID_PAGE_SETTLE_SECS)
         return None
 
     def _step1_navigate(
@@ -202,30 +156,30 @@ class PortalReceiver:
     ) -> ReceiveOutcome | None:
         page.goto(f"{self._base_url}/purchase-orders?id={po_number}")
         page.wait_for_load_state("networkidle")
-        time.sleep(_NAV_SETTLE_SECS)
+        time.sleep(portal_dom.NAV_SETTLE_SECS)
         if "/login" in page.url:
             _log.info("receiver.relogin")
             self._login(page)
         if "/login" in page.url:
             page.goto(f"{self._base_url}/purchase-orders?id={po_number}")
             page.wait_for_load_state("networkidle")
-            time.sleep(_NAV_SETTLE_SECS)
+            time.sleep(portal_dom.NAV_SETTLE_SECS)
         page.click("a#receive-btn")
         try:
             page.wait_for_url(
                 f"**/purchase-orders/{po_number}/receiving**",
-                timeout=_RECEIVE_URL_TIMEOUT_MS,
+                timeout=portal_dom.RECEIVE_URL_TIMEOUT_MS,
             )
         except Exception:
             _log.warning("step1.no_url", extra={"po": po_number, "inv": inventory_id})
             return "not_found"
         page.wait_for_load_state("networkidle")
-        time.sleep(_NAV_SETTLE_SECS)
+        time.sleep(portal_dom.NAV_SETTLE_SECS)
         self._screenshot(page, "01_receiving_page", inventory_id)
         return None
 
     def _step2_set_location(self, page: Page, inventory_id: str) -> None:
-        options = page.evaluate(_READ_OPTIONS_JS, "select.apply-all-location")
+        options = page.evaluate(portal_dom.READ_OPTIONS_JS, "select.apply-all-location")
         loc_value = ""
         for opt in options or []:
             if self._location_label in str(opt.get("text", "")):
@@ -233,13 +187,16 @@ class PortalReceiver:
                 break
         if not loc_value:
             _log.warning("step2.no_location", extra={"label": self._location_label})
-        page.evaluate(_KENDO_SET_JS, {"selector": "select.apply-all-location", "value": loc_value})
+        page.evaluate(
+            portal_dom.KENDO_SET_JS,
+            {"selector": "select.apply-all-location", "value": loc_value},
+        )
         page.click("button[onclick='onApplyAllLocation(0)']")
-        time.sleep(_LOCATION_SETTLE_SECS)
+        time.sleep(portal_dom.LOCATION_SETTLE_SECS)
         self._screenshot(page, "02_location_applied", inventory_id)
 
     def _step3_set_whse(self, page: Page, inventory_id: str) -> None:
-        options = page.evaluate(_READ_OPTIONS_JS, "select.apply-all-whse")
+        options = page.evaluate(portal_dom.READ_OPTIONS_JS, "select.apply-all-whse")
         _log.info("step3.whse_options", extra={"options": options})
         whse_value = ""
         for opt in options or []:
@@ -248,9 +205,12 @@ class PortalReceiver:
                 break
         if not whse_value:
             _log.warning("step3.no_whse", extra={"label": self._whse_label})
-        page.evaluate(_KENDO_SET_JS, {"selector": "select.apply-all-whse", "value": whse_value})
+        page.evaluate(
+            portal_dom.KENDO_SET_JS,
+            {"selector": "select.apply-all-whse", "value": whse_value},
+        )
         page.click("button[onclick='onApplyAllWhseLocation(0)']")
-        time.sleep(_WHSE_SETTLE_SECS)
+        time.sleep(portal_dom.WHSE_SETTLE_SECS)
         self._screenshot(page, "03_whse_applied", inventory_id)
 
     def _step4_find_row(
@@ -265,13 +225,13 @@ class PortalReceiver:
         qty_input = row.query_selector("input.receiving-qty-input")
         if qty_input is None:
             cells = row.query_selector_all("td")
-            if len(cells) > _QTY_COL:
-                qty_input = cells[_QTY_COL].query_selector("input")
+            if len(cells) > portal_dom.QTY_COL:
+                qty_input = cells[portal_dom.QTY_COL].query_selector("input")
         if qty_input is None:
             _log.warning("step4.no_qty_input", extra={"model": model, "inv": inventory_id})
             return "not_found"
-        page.evaluate(_QTY_SET_JS, qty_input)
-        time.sleep(_QTY_SETTLE_SECS)
+        page.evaluate(portal_dom.QTY_SET_JS, qty_input)
+        time.sleep(portal_dom.QTY_SETTLE_SECS)
         self._screenshot(page, "04_qty_set", inventory_id)
         return None
 
@@ -283,15 +243,15 @@ class PortalReceiver:
             _log.warning("step6.no_serial_input", extra={"inv": inventory_id})
             return "not_found"
         serial_input.fill(serial)
-        time.sleep(_SERIAL_SETTLE_SECS)
+        time.sleep(portal_dom.SERIAL_SETTLE_SECS)
         self._screenshot(page, "06_serial_entered", inventory_id)
         return None
 
     def _step8_finalize(self, page: Page, inventory_id: str) -> ReceiveOutcome:
         page.click("a[href='#finish']")
-        time.sleep(_FINALIZE_SETTLE_SECS)
+        time.sleep(portal_dom.FINALIZE_SETTLE_SECS)
         self._screenshot(page, "08_finalized", inventory_id)
-        error_text = page.evaluate(_FINALIZE_CHECK_JS)
+        error_text = page.evaluate(portal_dom.FINALIZE_CHECK_JS)
         if error_text:
             _log.warning(
                 "step8.finalize_error",
@@ -313,13 +273,13 @@ class PortalReceiver:
         if outcome is not None:
             return outcome
         page.click("a[href='#next']")
-        time.sleep(_REVIEW_SETTLE_SECS)
+        time.sleep(portal_dom.REVIEW_SETTLE_SECS)
         self._screenshot(page, "05_serial_page", inventory_id)
         outcome = self._step6_enter_serial(page, inventory_id, serial)
         if outcome is not None:
             return outcome
         page.click("a[href='#next']")
-        time.sleep(_REVIEW_SETTLE_SECS)
+        time.sleep(portal_dom.REVIEW_SETTLE_SECS)
         self._screenshot(page, "07_review_page", inventory_id)
         return self._step8_finalize(page, inventory_id)
 
@@ -333,7 +293,10 @@ class PortalReceiver:
             page = self._ensure_session()
             outcome = self._run_wizard(page, po_number, inventory_id, model, serial)
             dur_ms = int((time.monotonic() - t0) * 1000)
-            _log.info("receiver.item.done inv=%s outcome=%s ms=%d", inventory_id, outcome, dur_ms)
+            _log.info(
+                "receiver.item.done",
+                extra={"inv": inventory_id, "outcome": outcome, "ms": dur_ms},
+            )
             return outcome
         except ExecutorError:
             raise
