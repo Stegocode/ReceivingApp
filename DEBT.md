@@ -77,6 +77,29 @@ declaring T-12 DONE:
 Trigger: before T-13 (receive executor) is wired to a live board; run with real
 credentials in a local .env pointing at the live board.
 
+[DEBT-T13-001] 2026-06-21 — `adapters/receiver.py` (PortalReceiver) is PORTED but live-untested.
+CI has no browser binary, no portal credentials, and no live session. Tests exercise
+FakeReceiver and the pure _model_matches predicate only. Validate the following against
+the live portal before relying on PortalReceiver in production:
+  - Login flow: email/password fill, Enter press, networkidle settle, re-login on /login redirect.
+  - Step 1: purchase-orders?id={po} navigation, receive-btn click, receiving URL wait (15s timeout).
+  - Step 2: select.apply-all-location option resolution by RECEIVE_LOCATION text, kendo JS set,
+    onApplyAllLocation(0) button click, 3-second settle for WHSE options to load.
+  - Step 3: select.apply-all-whse option resolution by RECEIVE_WHSE_LOCATION text (log available
+    options), kendo JS set, onApplyAllWhseLocation(0) button click.
+  - Step 4: tr.k-master-row grid scan — _model_matches against cell[3], TBR > 0 check in
+    cell[7], qty input resolution (input.receiving-qty-input fallback to cell[8] input).
+  - Grid pagination: .k-next-button / aria-label*=next / .k-i-arrow-e selector coverage,
+    k-disabled and aria-disabled stop conditions, up to _MAX_GRID_PAGES pages.
+  - Step 5 → 6: a[href='#next'] click, input.brand-serial-input fill (absent → not_found).
+  - Step 7 → 8: second a[href='#next'] click, a[href='#finish'] click, .alert-danger /
+    .alert.alert-error visibility check for finalize_error detection.
+  - Browser session reuse: second receive_item call in the same session (no re-login expected).
+  - close() idempotency: calling close() twice, and calling close() before any receive_item.
+  - Screenshot capture: verify PNG files appear in RECEIVE_SCREENSHOT_DIR at each step.
+Trigger: before the orchestrator (T-14) is run against the live board and portal;
+run with real credentials and RECEIVE_LOCATION / RECEIVE_WHSE_LOCATION in a local .env.
+
 [DEBT-T09-001] 2026-06-19 — `adapters/sink.py` is PORTED but live-untested.
 CI has no real API token, no live board, and no real group IDs. The entire API
 pipeline is mocked in tests. Validate the following against the live board before

@@ -84,3 +84,13 @@ class BoardError(ReceivingAppError):
     and API token in config and retry; original exception is chained where
     applicable.
     """
+
+
+class ExecutorError(ReceivingAppError):
+    """Unexpected receive failure from the receiving executor adapter.
+
+    Signals an unrecoverable or unforeseen failure during the portal receiving
+    wizard — distinct from the expected outcomes ("received", "not_found",
+    "finalize_error") which are returned as strings, not raised. Callers count
+    ExecutorError occurrences and may trip a kill threshold on repeated failures.
+    """
