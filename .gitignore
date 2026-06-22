@@ -18,3 +18,4 @@ build/
 htmlcov/
 mutants/
 .mutmut-cache
+.claude/
