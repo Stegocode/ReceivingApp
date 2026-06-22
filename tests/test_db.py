@@ -221,10 +221,12 @@ def test_save_record_serial_round_trips(tmp_path):
 def test_unclaimed_for_po_returns_all_rows_when_none_claimed(tmp_path):
     """unclaimed_for_po returns all rows when none have claimed_at set."""
     repo = _repo(tmp_path)
-    repo.upsert_items([
-        _item(inventory_id="INV-001", purchase_order="PO-001", model_number="MDL-A"),
-        _item(inventory_id="INV-002", purchase_order="PO-001", model_number="MDL-A"),
-    ])
+    repo.upsert_items(
+        [
+            _item(inventory_id="INV-001", purchase_order="PO-001", model_number="MDL-A"),
+            _item(inventory_id="INV-002", purchase_order="PO-001", model_number="MDL-A"),
+        ]
+    )
     rows = repo.unclaimed_for_po("PO-001")
     assert len(rows) == 2
     assert all(r["claimed_at"] is None for r in rows)
@@ -236,10 +238,12 @@ def test_unclaimed_for_po_excludes_claimed_rows(tmp_path):
     Kills any mutation that drops the AND claimed_at IS NULL filter.
     """
     repo = _repo(tmp_path)
-    repo.upsert_items([
-        _item(inventory_id="INV-001", purchase_order="PO-001", model_number="MDL-A"),
-        _item(inventory_id="INV-002", purchase_order="PO-001", model_number="MDL-A"),
-    ])
+    repo.upsert_items(
+        [
+            _item(inventory_id="INV-001", purchase_order="PO-001", model_number="MDL-A"),
+            _item(inventory_id="INV-002", purchase_order="PO-001", model_number="MDL-A"),
+        ]
+    )
     repo.claim("INV-001", "2026-06-22T10:00:00")
     rows = repo.unclaimed_for_po("PO-001")
     assert len(rows) == 1
@@ -276,10 +280,12 @@ def test_claim_is_guarded_against_double_claiming(tmp_path):
 def test_claim_only_targets_matching_inventory_id(tmp_path):
     """claim("INV-001") must not affect INV-002 on the same PO."""
     repo = _repo(tmp_path)
-    repo.upsert_items([
-        _item(inventory_id="INV-001", purchase_order="PO-001"),
-        _item(inventory_id="INV-002", purchase_order="PO-001"),
-    ])
+    repo.upsert_items(
+        [
+            _item(inventory_id="INV-001", purchase_order="PO-001"),
+            _item(inventory_id="INV-002", purchase_order="PO-001"),
+        ]
+    )
     repo.claim("INV-001", "2026-06-22T10:00:00")
     rows = repo.get_purchase_order("PO-001")
     inv002 = next(r for r in rows if r["inventory_id"] == "INV-002")

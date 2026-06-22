@@ -217,6 +217,4 @@ def make_printer(printer_type: str) -> ZebraPrinter | PreviewPrinter:
         return PreviewPrinter()
     if printer_type == "zebra":
         return ZebraPrinter()
-    raise PrinterError(
-        f"Unknown PRINTER_TYPE '{printer_type}' — supported values: preview, zebra."
-    )
+    raise PrinterError(f"Unknown PRINTER_TYPE '{printer_type}' — supported values: preview, zebra.")

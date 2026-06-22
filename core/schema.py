@@ -50,10 +50,10 @@ class ReceivingRecord:
     match_status: str  # "received" | "no_match" | "needs_attention"
     purchase_order: str
     inventory_id: str
-    serial: str = ""   # serial number scanned with the physical unit
-    brand: str = ""    # brand from the inventory catalog
-    vendor: str = ""   # vendor from the inventory catalog
-    tags: str = ""     # tags from the inventory catalog
+    serial: str = ""  # serial number scanned with the physical unit
+    brand: str = ""  # brand from the inventory catalog
+    vendor: str = ""  # vendor from the inventory catalog
+    tags: str = ""  # tags from the inventory catalog
 
 
 def validate_record(data: dict) -> list[str]:
@@ -75,9 +75,7 @@ def validate_record(data: dict) -> list[str]:
 
     for field in _OPTIONAL_STR_FIELDS:
         if field in data and data[field] is not None and not isinstance(data[field], str):
-            problems.append(
-                f"{field}: expected str or None, got {type(data[field]).__name__}"
-            )
+            problems.append(f"{field}: expected str or None, got {type(data[field]).__name__}")
 
     ts = data.get("timestamp")
     if isinstance(ts, str) and ts.strip():

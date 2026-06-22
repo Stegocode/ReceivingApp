@@ -283,8 +283,7 @@ class ReceivingUI:
         rec = outcome.record
         if outcome.status == "received":
             self._log(
-                f"MATCHED  PO:{rec.purchase_order}  "
-                f"Model:{rec.model_number}  Serial:{rec.serial}"
+                f"MATCHED  PO:{rec.purchase_order}  Model:{rec.model_number}  Serial:{rec.serial}"
             )
             self._set_match_found(rec)
         elif outcome.status == "no_match":

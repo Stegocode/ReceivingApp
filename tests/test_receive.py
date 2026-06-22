@@ -185,9 +185,7 @@ def test_claiming_n_units_same_model_returns_n_distinct_inventory_ids() -> None:
         claimed_ids.append(record.inventory_id)
 
     assert len(claimed_ids) == N
-    assert len(set(claimed_ids)) == N, (
-        f"expected {N} distinct inventory_ids but got: {claimed_ids}"
-    )
+    assert len(set(claimed_ids)) == N, f"expected {N} distinct inventory_ids but got: {claimed_ids}"
     assert len(sink.emitted) == N
 
 
@@ -221,10 +219,12 @@ def test_claiming_does_not_affect_other_models_on_same_po() -> None:
     """
     repo = FakeRepository()
     sink = FakeResultSink()
-    repo.upsert_items([
-        _make_candidate("INV-A", "MODEL-A", "PO-001"),
-        _make_candidate("INV-B", "MODEL-B", "PO-001"),
-    ])
+    repo.upsert_items(
+        [
+            _make_candidate("INV-A", "MODEL-A", "PO-001"),
+            _make_candidate("INV-B", "MODEL-B", "PO-001"),
+        ]
+    )
 
     rec_a = process_scan("MODEL-A", "PO-001", repo, sink)
     rec_b = process_scan("MODEL-B", "PO-001", repo, sink)
@@ -274,10 +274,18 @@ def test_brand_vendor_tags_are_carried_from_matched_row() -> None:
     """
     repo = FakeRepository()
     sink = FakeResultSink()
-    repo.upsert_items([
-        _make_candidate("INV-001", "MODEL-A", "PO-001",
-                        brand="Whirlpool", vendor="Distributor X", tags="appliance,washer")
-    ])
+    repo.upsert_items(
+        [
+            _make_candidate(
+                "INV-001",
+                "MODEL-A",
+                "PO-001",
+                brand="Whirlpool",
+                vendor="Distributor X",
+                tags="appliance,washer",
+            )
+        ]
+    )
 
     record = process_scan("MODEL-A", "PO-001", repo, sink, serial="SN-9999")
 
