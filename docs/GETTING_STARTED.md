@@ -30,22 +30,24 @@ You only need to run it once.
 
 Copy the example configuration file and fill in your values:
 
-```
-cp .env.example .env
+```bash
+cp .env.example .env          # Unix / macOS
+Copy-Item .env.example .env   # Windows PowerShell
 ```
 
 Open `.env` in a text editor and fill every line. The settings are grouped as
 follows:
 
 **Paths** — where the application stores its database, logs, and downloads.
-All three must be **absolute paths**. Create the directories before starting the
-application — it will not create them for you.
+All three must be **absolute paths**. The application creates `LOG_DIR`,
+`DOWNLOAD_DIR`, and the parent directory of `DB_PATH` automatically on first
+start — you do not need to create them manually.
 
 | Setting | What it is |
 |---|---|
-| `DB_PATH` | Absolute path to the SQLite database file (created automatically; its parent directory must already exist) |
-| `LOG_DIR` | Absolute path to the directory for rotating log files |
-| `DOWNLOAD_DIR` | Absolute path to a scratch directory for portal download files |
+| `DB_PATH` | Path to the SQLite database file (created automatically; its parent directory is also created automatically) |
+| `LOG_DIR` | Absolute path to the directory for rotating log files (created automatically) |
+| `DOWNLOAD_DIR` | Absolute path to a scratch directory for portal download files (created automatically) |
 
 **Purchase order source** — credentials for the portal that holds open orders:
 
@@ -167,10 +169,7 @@ Complete these steps in order on a fresh install:
    playwright install chromium
    ```
 
-3. **Create the path directories** for `DB_PATH`, `LOG_DIR`, and `DOWNLOAD_DIR`.
-   These directories must exist before the application starts.
-
-4. **Copy `.env.example` to `.env`** and fill in every value.
+3. **Copy `.env.example` to `.env`** and fill in every value.
    See [Configuration](#2-configuration) above for descriptions.
 
 ### Validation checklist (dev/fake mode)
@@ -483,7 +482,7 @@ before doing this in a live environment.
 
 ---
 
-### 7. `PRINTER_TYPE` rejected at startup
+### 6. `PRINTER_TYPE` rejected at startup
 
 **Symptom:** The application fails to start with a config validation error:
 ```
@@ -497,7 +496,7 @@ use `preview` (opens a browser window) during development and testing.
 
 ---
 
-### 8. Sink returns 401 Unauthorized
+### 7. Sink returns 401 Unauthorized
 
 **Symptom:** `receiving-app` or `receiving-robot` raises a 401 error when posting results
 to the board.
@@ -512,7 +511,7 @@ to the board.
 
 ---
 
-### 9. Zebra printer not found
+### 8. Zebra printer not found
 
 **Symptom:** The scanner UI shows `print_failed` in the status panel. The log shows a
 `print_error` line with a message like "no Zebra printer found".
@@ -532,7 +531,7 @@ The receiving record is already saved; the only thing that failed was the label 
 
 ---
 
-### 10. Config validation errors at startup
+### 9. Config validation errors at startup
 
 **Symptom:** The application refuses to start and prints a list of problems, for example:
 ```
@@ -547,7 +546,7 @@ validation runs again on every start.
 
 ---
 
-### 11. `receiving-app` ImportError on an old checkout
+### 10. `receiving-app` ImportError on an old checkout
 
 **Symptom:** Running `receiving-app` raises:
 ```
@@ -561,7 +560,7 @@ from `__main__` to `scanner_runner`.
 
 ---
 
-### 12. Scanner reads the wrong PO (locked to wrong purchase order)
+### 11. Scanner reads the wrong PO (locked to wrong purchase order)
 
 **Symptom:** scans are matched against the wrong purchase order; labels print
 with an incorrect PO number.
