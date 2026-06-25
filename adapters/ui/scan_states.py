@@ -1,11 +1,11 @@
 """
-Owns: color/font constants, scan state machine logic, and manual-entry widgets for the
-      receiving UI.
+Owns: color/font constants, scan state machine logic, manual-entry widgets, and
+      UI poll helpers (_note_poll_error, _populate_and_queue) for the receiving UI.
 Must not: import services, adapters.db, adapters.sink, adapters.source, sqlite3.
-May import: core.schema, sys, threading, time, tkinter.
+May import: core.schema, core.ports, collections.abc, sys, threading, time, tkinter.
 
 State markers: IDLE, MID_SCAN, MATCHING, MATCH_FOUND, NO_MATCH, PRINT_FAILED,
-               ALREADY_SCANNED.
+               ALREADY_SCANNED, SYNC_STOPPED.
 """
 
 from __future__ import annotations
@@ -14,9 +14,38 @@ import sys
 import threading
 import time
 import tkinter as tk
+from collections.abc import Callable
 from typing import Any
 
-from core.schema import ReceivingRecord
+from core.schema import ReceivingRecord, SyncStatusRecord
+
+# ── Poll helpers (shared by scanner_ui poll loops) ────────────────────────────
+
+
+def _note_poll_error(
+    exc: Exception,
+    logged: list[bool],
+    log_fn: Callable[[str], None],
+    label: str = "focus poll",
+) -> None:
+    if not logged[0]:
+        log_fn(f"{label} error: {exc!r}")
+        logged[0] = True
+
+
+def _populate_and_queue(
+    populate: Callable[[str], None],
+    po: str,
+    log_fn: Callable[[str], None],
+    queue_fn: Callable[[str], None],
+) -> None:
+    try:
+        populate(po)
+        log_fn(f"PO {po} loaded")
+        queue_fn(po)
+    except Exception as exc:
+        log_fn(f"PO {po} error: {exc}")
+
 
 # ── Colors ────────────────────────────────────────────────────────────────────
 C_LEFT = "#34495E"
@@ -32,6 +61,8 @@ C_DIM = "#BDC3C7"
 C_ACCENT = "#3498DB"
 C_INPUT_BG = "#243342"
 C_ALREADY_SCANNED = "#8E44AD"
+C_SYNC_STOPPED = "#E67E22"
+C_SYNC_STOPPED2 = "#CA6F1E"
 
 # ── Fonts ─────────────────────────────────────────────────────────────────────
 F_STATE = ("Arial", 72, "bold")
@@ -149,6 +180,51 @@ def set_already_scanned(ui: Any, record: ReceivingRecord) -> None:
 def dismiss_no_match(ui: Any) -> None:
     if ui._state in ("NO_MATCH", "PRINT_FAILED", "ALREADY_SCANNED"):
         ui._set_idle()
+    elif ui._state == "SYNC_STOPPED":
+        dismiss_sync_stopped(ui)
+
+
+# ── Sync-stopped alert ────────────────────────────────────────────────────────
+
+
+def should_alert_sync_stopped(
+    status: SyncStatusRecord | None,
+    dismissed_updated_at: str | None,
+) -> bool:
+    """Pure decision — no Tk, no I/O. Returns True when the operator needs a SYNC_STOPPED alert."""
+    if status is None or status.state != "stopped":
+        return False
+    return dismissed_updated_at is None or status.updated_at != dismissed_updated_at
+
+
+def set_sync_stopped(ui: Any, stopped_reason: str) -> None:
+    ui._state = "SYNC_STOPPED"
+    ui._reset_btn.place_forget()
+    set_right_bg(ui, C_SYNC_STOPPED)
+    ui._state_lbl.configure(text="SYNC STOPPED", fg=C_WHITE)
+    detail = stopped_reason if stopped_reason else "check board for needs_attention"
+    ui._sec_lbl.configure(text=f"{detail}  ·  Esc to dismiss", fg=C_WHITE)
+    start_flash_sync_stopped(ui)
+    start_alarm(ui._alarm_event, ui._root.bell)
+
+
+def start_flash_sync_stopped(ui: Any) -> None:
+    stop_flash(ui)
+    do_flash_sync_stopped(ui, C_SYNC_STOPPED)
+
+
+def do_flash_sync_stopped(ui: Any, current: str) -> None:
+    if ui._state != "SYNC_STOPPED":
+        return
+    nxt = C_SYNC_STOPPED2 if current == C_SYNC_STOPPED else C_SYNC_STOPPED
+    set_right_bg(ui, nxt)
+    ui._flash_after_id = ui._root.after(400, do_flash_sync_stopped, ui, nxt)
+
+
+def dismiss_sync_stopped(ui: Any) -> None:
+    """Clear SYNC_STOPPED; record the event key so the poll does not immediately re-alert."""
+    ui._dismissed_sync_stop_at = getattr(ui, "_last_sync_stop_at", None)
+    ui._set_idle()
 
 
 # ── Flash ─────────────────────────────────────────────────────────────────────
