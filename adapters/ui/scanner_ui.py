@@ -5,8 +5,10 @@ Must not: import services, adapters.db, adapters.sink, adapters.source, sqlite3,
 May import: tkinter, core.schema, core.errors, core.ports, adapters.scanner,
             adapters.ui.controller, adapters.ui.scan_states.
 
-Scope: single-writer, single-machine. Scan flow: IDLE→MID_SCAN→MATCHING.
+Scope: single-writer, single-machine. Scan flow: IDLE→MID_SCAN→MATCHING→SYNC_STOPPED.
 PO labels ("PO:{n}") switch the locked PO without triggering a model match.
+
+not_measured: live Tk rendering, real cross-process timing, 1500 ms poll accuracy.
 """
 
 from __future__ import annotations
@@ -38,29 +40,11 @@ from adapters.ui.scan_states import (
     F_SECTION,
     F_STATE,
     F_TITLE,
+    _note_poll_error,
+    _populate_and_queue,
 )
-from core.ports import Printer
+from core.ports import Printer, SyncStatusStore
 from core.schema import ReceivingRecord
-
-
-def _note_poll_error(exc: Exception, logged: list[bool], log_fn: Callable[[str], None]) -> None:
-    if not logged[0]:
-        log_fn(f"focus poll error: {exc!r}")
-        logged[0] = True
-
-
-def _populate_and_queue(
-    populate: Callable[[str], None],
-    po: str,
-    log_fn: Callable[[str], None],
-    queue_fn: Callable[[str], None],
-) -> None:
-    try:
-        populate(po)
-        log_fn(f"PO {po} loaded")
-        queue_fn(po)
-    except Exception as exc:
-        log_fn(f"PO {po} error: {exc}")
 
 
 class ReceivingUI:
@@ -73,11 +57,13 @@ class ReceivingUI:
         printer: Printer,
         scanner_type: str,
         populate: Callable[[str], None] | None = None,
+        sync_status_store: SyncStatusStore | None = None,
     ) -> None:
         self._process = process
         self._printer = printer
         self._scanner_type = scanner_type
         self._populate = populate
+        self._sync_status_store = sync_status_store
 
     def run(self) -> None:
         root = tk.Tk()
@@ -88,8 +74,13 @@ class ReceivingUI:
         self._model_scan: str | None = None
         self._flash_after_id: str | None = None
         self._alarm_event = threading.Event()
+        self._dismissed_sync_stop_at: str | None = None
+        self._last_sync_stop_at: str | None = None
+        self._sync_poll_error_logged: list[bool] = [False]
 
         self._build_ui()
+        if self._sync_status_store is not None:
+            self._root.after(1500, self._poll_sync_status)
 
         scanner = make_scanner(self._scanner_type, parent=self._right)
         scanner.start(self._on_scan)
@@ -306,31 +297,35 @@ class ReceivingUI:
             self._log(
                 f"MATCHED  PO:{rec.purchase_order}  Model:{rec.model_number}  Serial:{rec.serial}"
             )
-            self._set_match_found(rec)
+            scan_states.set_match_found(self, rec)
         elif outcome.status == "no_match":
             self._log(f"NO MATCH  PO:{rec.purchase_order}")
-            self._set_no_match()
+            scan_states.set_no_match(self)
         elif outcome.status == "already_scanned":
             self._log(f"ALREADY SCANNED  PO:{rec.purchase_order}  Model:{rec.model_number}")
             scan_states.set_already_scanned(self, rec)
         else:
             self._log(f"PRINT FAILED  PO:{rec.purchase_order}  Model:{rec.model_number}")
-            self._set_print_failed(rec)
+            scan_states.set_print_failed(self, rec)
 
     def _set_idle(self) -> None:
         scan_states.set_idle(self)
 
-    def _set_match_found(self, record: ReceivingRecord) -> None:
-        scan_states.set_match_found(self, record)
-
-    def _set_no_match(self) -> None:
-        scan_states.set_no_match(self)
-
-    def _set_print_failed(self, record: ReceivingRecord) -> None:
-        scan_states.set_print_failed(self, record)
-
     def _dismiss_no_match(self, _event: object = None) -> None:
         scan_states.dismiss_no_match(self)
+
+    def _poll_sync_status(self) -> None:
+        try:
+            status = self._sync_status_store.read_sync_status()  # type: ignore[union-attr]
+            if scan_states.should_alert_sync_stopped(
+                status, self._dismissed_sync_stop_at
+            ) and self._state not in ("SYNC_STOPPED", "MATCHING"):
+                assert status is not None
+                self._last_sync_stop_at = status.updated_at
+                scan_states.set_sync_stopped(self, status.stopped_reason)
+        except Exception as exc:
+            _note_poll_error(exc, self._sync_poll_error_logged, self._log, "sync poll")
+        self._root.after(1500, self._poll_sync_status)
 
     def _print_po_label_bg(self, po_number: str) -> None:
         try:
