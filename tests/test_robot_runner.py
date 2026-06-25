@@ -25,10 +25,10 @@ def _env(tmp_path: object) -> dict[str, str]:
         "DB_PATH": str(tmp_path / "db.sqlite"),  # type: ignore[operator]
         "LOG_DIR": str(tmp_path / "logs"),  # type: ignore[operator]
         "DOWNLOAD_DIR": str(tmp_path / "dl"),  # type: ignore[operator]
-        "SOURCE_BASE_URL": "http://source.example",
+        "SOURCE_BASE_URL": "https://source.example",
         "SOURCE_USERNAME": "user",
         "SOURCE_PASSWORD": "pass",
-        "SINK_BASE_URL": "http://sink.example",
+        "SINK_BASE_URL": "https://sink.example",
         "SINK_API_TOKEN": "tok",
         "SINK_BOARD_ID": "b1",
         "SINK_RECEIVED_GROUP_ID": "g1",

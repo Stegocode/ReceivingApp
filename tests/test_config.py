@@ -353,3 +353,43 @@ def test_startup_gate(monkeypatch, tmp_path):
 
     app = app_main.build_app()
     assert isinstance(app, ReceivingUI)
+
+
+# T2-7 — HTTPS enforcement on credential-bearing base URLs
+
+
+@pytest.mark.parametrize(
+    "var,url",
+    [
+        ("SOURCE_BASE_URL", "http://portal.example.com"),
+        ("SINK_BASE_URL", "http://api.example.com/v2"),
+        ("SOURCE_BASE_URL", "http://https.portal.example.com"),  # 'https' in host ≠ scheme
+    ],
+)
+def test_http_non_local_url_fails(monkeypatch, var, url):
+    """Non-https scheme on non-local URL fails; scheme is checked, not hostname."""
+    cfg = _reload(monkeypatch, {**_VALID_ENV, var: url})
+    with pytest.raises(ConfigError) as exc:
+        cfg.validate(dotenv_path=None)
+    assert var in str(exc.value)
+    assert "HTTPS" in str(exc.value)
+
+
+@pytest.mark.parametrize("url", ["http://localhost:8080", "http://127.0.0.1:8080"])
+def test_http_local_passes(monkeypatch, url):
+    """http://localhost and http://127.0.0.1 are allowed for local dev."""
+    cfg = _reload(monkeypatch, {**_VALID_ENV, "SOURCE_BASE_URL": url})
+    cfg.validate(dotenv_path=None)
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"SOURCE_TYPE": "fake", "SOURCE_BASE_URL": "http://portal.example.com"},
+        {"SINK_TYPE": "null", "SINK_BASE_URL": "http://api.example.com/v2"},
+    ],
+)
+def test_adapter_type_skips_https_check(monkeypatch, extra):
+    """fake/null adapter type — http:// base URL is not scheme-checked."""
+    cfg = _reload(monkeypatch, {**_VALID_ENV, **extra})
+    cfg.validate(dotenv_path=None)
