@@ -11,6 +11,7 @@ May import: os, pathlib, python-dotenv, core.errors.
 from __future__ import annotations
 
 import os
+import urllib.parse
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -99,6 +100,38 @@ def _read_board_columns(problems: list[str]) -> tuple[str, str, str, str]:
     )
 
 
+def _check_https_scheme(url: str, var_name: str, problems: list[str]) -> None:
+    """Reject non-https schemes on credential-bearing URLs.
+
+    http://localhost and http://127.0.0.1 are allowed for local dev/testing.
+    """
+    if not url:
+        return
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme == "https":
+        return
+    if parsed.hostname in ("localhost", "127.0.0.1"):
+        return
+    problems.append(
+        f"  {var_name} — HTTPS is required for credentialed endpoints;"
+        f" got scheme '{parsed.scheme}'."
+    )
+
+
+def _check_credentialed_url_schemes(
+    source_base_url: str,
+    source_type: str,
+    sink_base_url: str,
+    sink_type: str,
+    problems: list[str],
+) -> None:
+    """Enforce HTTPS on URLs that carry credentials; skip fake/null adapters."""
+    if source_type != "fake":
+        _check_https_scheme(source_base_url, "SOURCE_BASE_URL", problems)
+    if sink_type != "null":
+        _check_https_scheme(sink_base_url, "SINK_BASE_URL", problems)
+
+
 def _read_receiver_config(problems: list[str]) -> tuple[str, str, str, str]:
     """Read RECEIVER_TYPE (choice) and the RECEIVE_* vars.
 
@@ -172,6 +205,9 @@ def validate(dotenv_path: Path | str | None = Path(".env")) -> None:
     printer_type = _validate_choice("PRINTER_TYPE", "preview", {"preview", "zebra"}, problems)
     source_type = _validate_choice("SOURCE_TYPE", "portal", {"portal", "fake"}, problems)
     sink_type = _validate_choice("SINK_TYPE", "graphql", {"graphql", "null"}, problems)
+    _check_credentialed_url_schemes(
+        source_base_url, source_type, sink_base_url, sink_type, problems
+    )
     fake_data_raw = _read_optional_str("FAKE_SOURCE_DATA", "test_data/pos.json")
     (
         receiver_type,
