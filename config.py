@@ -132,6 +132,40 @@ def _check_credentialed_url_schemes(
         _check_https_scheme(sink_base_url, "SINK_BASE_URL", problems)
 
 
+def _read_source_config(source_type: str, problems: list[str]) -> tuple[str, str, str]:
+    """Read SOURCE_BASE_URL, SOURCE_USERNAME, SOURCE_PASSWORD.
+
+    All three are required when SOURCE_TYPE=portal; optional when SOURCE_TYPE=fake.
+    """
+    if source_type == "portal":
+        return (
+            _require("SOURCE_BASE_URL", problems),
+            _require("SOURCE_USERNAME", problems),
+            _require("SOURCE_PASSWORD", problems),  # noqa: S105
+        )
+    return (
+        _read_optional_str("SOURCE_BASE_URL", ""),
+        _read_optional_str("SOURCE_USERNAME", ""),
+        _read_optional_str("SOURCE_PASSWORD", ""),
+    )
+
+
+def _read_sink_credentials(sink_type: str, problems: list[str]) -> tuple[str, str]:
+    """Read SINK_BASE_URL and SINK_API_TOKEN.
+
+    Both are required when SINK_TYPE=graphql; optional when SINK_TYPE=null.
+    """
+    if sink_type == "graphql":
+        return (
+            _require("SINK_BASE_URL", problems),
+            _require("SINK_API_TOKEN", problems),
+        )
+    return (
+        _read_optional_str("SINK_BASE_URL", ""),
+        _read_optional_str("SINK_API_TOKEN", ""),
+    )
+
+
 def _read_receiver_config(problems: list[str]) -> tuple[str, str, str, str]:
     """Read RECEIVER_TYPE (choice) and the RECEIVE_* vars.
 
@@ -208,11 +242,10 @@ def validate(dotenv_path: Path | str | None = _DOTENV_SEARCH) -> None:  # type: 
     db_path_raw = _require("DB_PATH", problems)
     log_dir_raw = _require("LOG_DIR", problems)
     download_dir_raw = _require("DOWNLOAD_DIR", problems)
-    source_base_url = _require("SOURCE_BASE_URL", problems)
-    source_username = _require("SOURCE_USERNAME", problems)
-    source_password = _require("SOURCE_PASSWORD", problems)  # noqa: S105
-    sink_base_url = _require("SINK_BASE_URL", problems)
-    sink_api_token = _require("SINK_API_TOKEN", problems)
+    source_type = _validate_choice("SOURCE_TYPE", "portal", {"portal", "fake"}, problems)
+    sink_type = _validate_choice("SINK_TYPE", "graphql", {"graphql", "null"}, problems)
+    source_base_url, source_username, source_password = _read_source_config(source_type, problems)
+    sink_base_url, sink_api_token = _read_sink_credentials(sink_type, problems)
     sink_board_id = _require("SINK_BOARD_ID", problems)
     (
         sink_received_group_id,
@@ -230,8 +263,6 @@ def validate(dotenv_path: Path | str | None = _DOTENV_SEARCH) -> None:  # type: 
     poll_interval = _read_poll_interval(problems)
     scanner_type = _validate_choice("SCANNER_TYPE", "wedge", {"wedge", "manual"}, problems)
     printer_type = _validate_choice("PRINTER_TYPE", "preview", {"preview", "zebra"}, problems)
-    source_type = _validate_choice("SOURCE_TYPE", "portal", {"portal", "fake"}, problems)
-    sink_type = _validate_choice("SINK_TYPE", "graphql", {"graphql", "null"}, problems)
     _check_credentialed_url_schemes(
         source_base_url, source_type, sink_base_url, sink_type, problems
     )
