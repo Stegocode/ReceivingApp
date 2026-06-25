@@ -173,10 +173,13 @@ class BoardApiAdapter:
     def mark_received(self, item_id: str) -> None:
         """Move item to RECEIVED group and set status column to RECEIVED.
 
-        Two sequential mutations: move first, then set status.
-        Raises BoardError if either mutation fails.
+        Two sequential mutations — status FIRST, move SECOND.
+        Ordering rationale (DEBT-BOARD-001): if the move fails after a successful
+        status-set, the item stays in READY with correct RECEIVED status — visible,
+        re-processable. The prior order (move first) left items in RECEIVED-group
+        with a blank status on partial failure, which is not recoverable without a
+        manual audit. Raises BoardError on any failure (fail-closed).
         """
-        self._post(_MUTATION_MOVE, {"itemId": item_id, "groupId": self._received_group_id})
         self._post(
             _MUTATION_SET_STATUS,
             {
@@ -186,6 +189,7 @@ class BoardApiAdapter:
                 "value": json.dumps({"label": "RECEIVED"}),
             },
         )
+        self._post(_MUTATION_MOVE, {"itemId": item_id, "groupId": self._received_group_id})
         logger.info(json.dumps({"event": "board_mark_received", "item_id": item_id}))
 
     def mark_no_match(self, item_id: str) -> None:
