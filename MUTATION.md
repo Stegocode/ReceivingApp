@@ -1,8 +1,8 @@
 # Accepted Equivalent Mutants
 
-Mutation score after T-16: **82.4%** (542 killed / 658 total).
+Mutation score after fix/duplicate-exact-match: **83.1%** (742 killed / 893 total).
 
-116 survivors are classified as equivalent — mutations that change code without
+151 survivors are classified as equivalent — mutations that change code without
 changing any observable, testable behavior. Asserting against them would require
 testing exact log strings, which is brittle and explicitly out-of-scope (adding
 log-text assertions produces tests that break on any log-message typo fix).
@@ -104,8 +104,11 @@ records; it never sets `match_status = "needs_attention"`. The branch that calls
 |-----------|-------------|
 | recv_br_44 | `if matched and best_model` → `if matched or best_model` — `matched` is produced by `next(...) if best_model else None`, so `matched` is `None` iff `best_model` is `None`; `and` and `or` are observably equivalent. |
 | recv_ps_13 | `next(..., None)` → `next(..., )` — default is unreachable: when `best_model` is truthy it was produced by `find_best_match` over the same candidates list, so the generator always yields a result before exhaustion. |
-| recv_dup_br_1 | `claimed_row.get("model_number", barcode)` → `…get("model_number", None)` — default unreachable: `claimed_row` is the dict returned by `claimed_for_po` and was located via `find_best_match(…, [c["model_number"] …])`, so it always has `"model_number"`. The `barcode` fallback is defensive dead code. |
+| recv_dup_br_1 | `claimed_row.get("model_number", barcode)` → `…get("model_number", None)` — default unreachable: `claimed_row` is found via `next(c for c in claimed if c["model_number"] == barcode)`, so it always has `"model_number"`. The `barcode` fallback is defensive dead code. |
 | recv_dup_br_2 | `claimed_row.get("model_number", barcode)` → `…get("model_number", )` — same reasoning as recv_dup_br_1; default argument omitted but also unreachable. |
+| recv_dup_br_3 | `claimed_row.get("model_number", barcode)` → `…get(None, barcode)` — key mutated to None; `.get(None, barcode)` returns `barcode`, which equals `claimed_row["model_number"]` by the exact-match invariant (`c["model_number"] == barcode` was the selection criterion). Observable value identical. |
+| recv_dup_br_4 | `claimed_row.get("model_number", barcode)` → `…get("XXmodel_numberXX", barcode)` — garbled key; fallback returns `barcode` = `model_number` (same as recv_dup_br_3 reasoning). |
+| recv_dup_br_5 | `claimed_row.get("model_number", barcode)` → `…get("MODEL_NUMBER", barcode)` — wrong-case key; dict keys are lowercase, fallback returns `barcode` = `model_number` (same reasoning). |
 
 ---
 
