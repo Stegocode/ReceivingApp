@@ -10,6 +10,7 @@ in development and CI.
 
 from __future__ import annotations
 
+import html
 import tempfile
 import webbrowser
 from datetime import date
@@ -229,17 +230,18 @@ class PreviewPrinter:
 
     def print_po_label(self, po_number: str) -> None:
         try:
-            html = (
+            po_escaped = html.escape(po_number)
+            content = (
                 "<!DOCTYPE html><html><head><meta charset='utf-8'>"
                 "<title>PO Label</title></head><body>"
-                f"<h1>Purchase Order</h1><p style='font-size:3em'>{po_number}</p>"
-                f"<p>Barcode: PO:{po_number}</p>"
+                f"<h1>Purchase Order</h1><p style='font-size:3em'>{po_escaped}</p>"
+                f"<p>Barcode: PO:{po_escaped}</p>"
                 "</body></html>"
             )
             with tempfile.NamedTemporaryFile(
                 "w", suffix=".html", delete=False, encoding="utf-8"
             ) as fh:
-                fh.write(html)
+                fh.write(content)
                 tmp = Path(fh.name)
             _open(tmp.as_uri())
         except Exception as exc:
@@ -247,6 +249,7 @@ class PreviewPrinter:
 
 
 def _render_label(record: ReceivingRecord) -> str:
+    e = html.escape
     size = record.product_size
     dims = f"{size.get('w', 0)} x {size.get('d', 0)} x {size.get('h', 0)}"
     return (
@@ -254,20 +257,20 @@ def _render_label(record: ReceivingRecord) -> str:
         "<html><head><meta charset='utf-8'>"
         "<title>Receiving Label</title></head><body>\n"
         "<h1>Receiving Label</h1><dl>\n"
-        f"<dt>PO</dt><dd>{record.purchase_order}</dd>\n"
-        f"<dt>Model</dt><dd>{record.model_number}</dd>\n"
-        f"<dt>Inventory ID</dt><dd>{record.inventory_id}</dd>\n"
-        f"<dt>Serial</dt><dd>{record.serial}</dd>\n"
-        f"<dt>Brand</dt><dd>{record.brand}</dd>\n"
-        f"<dt>Vendor</dt><dd>{record.vendor}</dd>\n"
-        f"<dt>Tags</dt><dd>{record.tags}</dd>\n"
-        f"<dt>Status</dt><dd>{record.match_status}</dd>\n"
-        f"<dt>Truck</dt><dd>{record.truck}</dd>\n"
-        f"<dt>Stop</dt><dd>{record.stop}</dd>\n"
-        f"<dt>Sales Order</dt><dd>{record.sales_order}</dd>\n"
-        f"<dt>Size</dt><dd>{dims}</dd>\n"
+        f"<dt>PO</dt><dd>{e(record.purchase_order)}</dd>\n"
+        f"<dt>Model</dt><dd>{e(record.model_number)}</dd>\n"
+        f"<dt>Inventory ID</dt><dd>{e(record.inventory_id)}</dd>\n"
+        f"<dt>Serial</dt><dd>{e(record.serial)}</dd>\n"
+        f"<dt>Brand</dt><dd>{e(record.brand)}</dd>\n"
+        f"<dt>Vendor</dt><dd>{e(record.vendor)}</dd>\n"
+        f"<dt>Tags</dt><dd>{e(record.tags)}</dd>\n"
+        f"<dt>Status</dt><dd>{e(record.match_status)}</dd>\n"
+        f"<dt>Truck</dt><dd>{e(record.truck)}</dd>\n"
+        f"<dt>Stop</dt><dd>{e(record.stop)}</dd>\n"
+        f"<dt>Sales Order</dt><dd>{e(record.sales_order)}</dd>\n"
+        f"<dt>Size</dt><dd>{e(dims)}</dd>\n"
         f"<dt>Qty</dt><dd>{record.quantity}</dd>\n"
-        f"<dt>Timestamp</dt><dd>{record.timestamp}</dd>\n"
+        f"<dt>Timestamp</dt><dd>{e(record.timestamp)}</dd>\n"
         "</dl></body></html>"
     )
 

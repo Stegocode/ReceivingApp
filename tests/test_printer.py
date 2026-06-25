@@ -157,3 +157,73 @@ def test_preview_printer_print_po_label_wraps_failure(monkeypatch):
     monkeypatch.setattr(printer_mod, "_open", _raise)
     with pytest.raises(PrinterError, match="preview PO label failed"):
         PreviewPrinter().print_po_label("X")
+
+
+# ── HTML escaping ─────────────────────────────────────────────────────────────
+
+
+def test_receiving_label_escapes_html_in_model_number(monkeypatch):
+    """A script tag in model_number is escaped; the raw tag must not appear in output."""
+    from dataclasses import replace
+
+    written: list[str] = []
+    monkeypatch.setattr(printer_mod, "_open", lambda uri: written.append(uri))
+
+    record = replace(_make_record(), model_number="<script>alert(1)</script>")
+    PreviewPrinter().print_label(record)
+
+    content = _uri_to_path(written[0]).read_text(encoding="utf-8")
+    assert "<script>" not in content
+    assert "&lt;script&gt;" in content
+
+
+def test_receiving_label_escapes_html_in_serial(monkeypatch):
+    """Ampersand and angle brackets in serial are escaped in the receiving label."""
+    from dataclasses import replace
+
+    written: list[str] = []
+    monkeypatch.setattr(printer_mod, "_open", lambda uri: written.append(uri))
+
+    record = replace(_make_record(), serial='A & B "C" <bad>')
+    PreviewPrinter().print_label(record)
+
+    content = _uri_to_path(written[0]).read_text(encoding="utf-8")
+    assert "<bad>" not in content
+    assert "&amp;" in content
+    assert "&lt;bad&gt;" in content
+
+
+def test_receiving_label_clean_values_render_unchanged(monkeypatch):
+    """Normal field values appear verbatim — html.escape is a no-op on clean strings."""
+    written: list[str] = []
+    monkeypatch.setattr(printer_mod, "_open", lambda uri: written.append(uri))
+
+    PreviewPrinter().print_label(_make_record())
+
+    content = _uri_to_path(written[0]).read_text(encoding="utf-8")
+    assert "PO-9001" in content
+    assert "MDL-X" in content
+    assert "INV-001" in content
+
+
+def test_po_label_escapes_html_in_po_number(monkeypatch):
+    """A script tag in po_number is escaped; the raw tag must not appear in PO label output."""
+    written: list[str] = []
+    monkeypatch.setattr(printer_mod, "_open", lambda uri: written.append(uri))
+
+    PreviewPrinter().print_po_label("<script>bad()</script>")
+
+    content = _uri_to_path(written[0]).read_text(encoding="utf-8")
+    assert "<script>" not in content
+    assert "&lt;script&gt;" in content
+
+
+def test_po_label_clean_po_renders_unchanged(monkeypatch):
+    """A normal PO number appears verbatim in the PO label HTML."""
+    written: list[str] = []
+    monkeypatch.setattr(printer_mod, "_open", lambda uri: written.append(uri))
+
+    PreviewPrinter().print_po_label("PO-CLEAN-42")
+
+    content = _uri_to_path(written[0]).read_text(encoding="utf-8")
+    assert "PO-CLEAN-42" in content
