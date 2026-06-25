@@ -48,10 +48,11 @@ breaker halts the loop automatically if the per-pass success rate drops below
 **Requirements:** Python ≥ 3.11. WinPython is the recommended distribution on
 Windows.
 
-```
+```bash
 pip install -e ".[dev]"
 playwright install chromium   # needed for portal adapters (source + receiver)
-cp .env.example .env          # then fill every value
+cp .env.example .env          # Unix / macOS — then fill every value
+Copy-Item .env.example .env   # Windows PowerShell equivalent
 ```
 
 ```bash

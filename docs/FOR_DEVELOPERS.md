@@ -94,7 +94,7 @@ scripts/
   conformance.py    14-gate mechanical check (see conformance section below)
 
 config.py           single config source; validate() checks all required vars
-__main__.py         composition root for receiving-app (build_app + main)
+scanner_runner.py   composition root for receiving-app (build_app + main)
 refresh_runner.py   composition root for receiving-refresh
 robot_runner.py     composition root for receiving-robot (poll loop)
 ```
