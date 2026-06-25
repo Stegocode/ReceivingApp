@@ -20,12 +20,17 @@ ALREADY_SCANNED_NO_SIDE_EFFECTS:
 
 ALREADY_SCANNED_FIELDS_FULL:
   All catalog fields are carried from the claimed_row onto the record.
-  Uses a fuzzy barcode (barcode ≠ model_number) to distinguish model_number
-  key-lookup mutations from the fallback default.
+  Exact barcode used (barcode == model_number); model_number key-lookup
+  mutations are Category F equivalents (default unreachable).
 
 ALREADY_SCANNED_FIELDS_SPARSE:
   Missing optional fields in claimed_row fall back to schema defaults.
   Verifies get(key, default) defaults are correct, not corrupted.
+
+ADJACENT_SKU_REGRESSION:
+  A barcode that fuzzy-matches a claimed model but is NOT an exact match
+  must fall through to no_match — NOT already_scanned. This guards against
+  reverting the duplicate-detection path back to fuzzy matching.
 """
 
 from __future__ import annotations
@@ -65,14 +70,14 @@ def _make_candidate(
 
 
 # ── Already-scanned detection tests (GATED — T0-2) ────────────────────────────
-# ── The detection branch (if matched is None: … if claimed_best: … return) ────
-# ── and _build_already_scanned_record field assignments are the T0-2 new code. ─
+# ── The detection branch (if matched is None: … if dup_row: … return) and ─────
+# ── _build_already_scanned_record field assignments are the T0-2 new code. ─────
 
 
 def test_already_scanned_fires_for_claimed_unit_not_for_unclaimed() -> None:
     """Detection fires ONLY after the unit is claimed; NOT for an unclaimed unit.
 
-    Both directions asserted so inverting 'if matched is None:' or 'if claimed_best:'
+    Both directions asserted so inverting 'if matched is None:' or 'if dup_row:'
     is caught:
       - first scan of unclaimed unit must be 'received', never 'already_scanned'
       - re-scan of same (now claimed) unit must be 'already_scanned', never 'no_match'
@@ -105,16 +110,15 @@ def test_already_scanned_fires_for_claimed_unit_not_for_unclaimed() -> None:
 def test_already_scanned_record_carries_all_fields_from_claimed_row() -> None:
     """All catalog fields are copied from the claimed row onto the already_scanned record.
 
-    Uses a fuzzy barcode ('MODEL-AB' fuzzy-matches catalog 'MODEL-A', score ≈ 0.93
-    using normalized SequenceMatcher, threshold 0.6) so that barcode ≠ model_number.
-    This is required to kill the model_number key-lookup mutations: get(None, barcode)
-    and get("XX…XX", barcode) both fall back to returning barcode ('MODEL-AB') instead
-    of the catalog value ('MODEL-A'), so the assertion model_number == 'MODEL-A' catches
-    them.
+    Duplicate detection now requires exact model_number match (== barcode), so barcode
+    equals model_number here. model_number key-lookup mutations (recv_dup_br_1/br_2)
+    are Category F equivalents — default is unreachable because dup_row was selected
+    via c["model_number"] == barcode, guaranteeing the key is present.
 
     Kills:
-      - All _build_already_scanned_record key-lookup survivors: get(None,…) /
-        get("XX…XX",…) / get("FIELD_NAME",…) for every catalog field.
+      - All other _build_already_scanned_record key-lookup survivors: get(None,…) /
+        get("XX…XX",…) / get("FIELD_NAME",…) for truck/stop/sales_order/category/
+        product_size/quantity.
       - 'and' operator mutations on brand/vendor/tags: non-empty value collapses to ''
         when 'or' is replaced with 'and' (e.g. "Acme" and "" → "").
       - process_scan barcode→None: changes receiving_id hash, caught by exact hash assert.
@@ -135,15 +139,12 @@ def test_already_scanned_record_carries_all_fields_from_claimed_row() -> None:
         ]
     )
 
-    # First scan with fuzzy barcode — matches MODEL-A, claims INV-001.
-    process_scan("MODEL-AB", "PO-001", repo, sink)
-
-    # Re-scan: same fuzzy barcode, unit now claimed → already_scanned.
-    record = process_scan("MODEL-AB", "PO-001", repo, sink, serial="SN-DUP-99")
+    process_scan("MODEL-A", "PO-001", repo, sink)
+    record = process_scan("MODEL-A", "PO-001", repo, sink, serial="SN-DUP-99")
 
     assert record.match_status == "already_scanned"
     assert record.purchase_order == "PO-001"
-    assert record.model_number == "MODEL-A"  # catalog value, not barcode 'MODEL-AB'
+    assert record.model_number == "MODEL-A"
     assert record.inventory_id == "INV-001"
     assert record.truck == "T1"
     assert record.stop == "S1"
@@ -156,7 +157,7 @@ def test_already_scanned_record_carries_all_fields_from_claimed_row() -> None:
     assert record.vendor == "Dist-Y"
     assert record.tags == "a,b"
     # receiving_id = sha256(po_number + inventory_id + barcode) — same hash as original scan.
-    expected_rid = hashlib.sha256(b"PO-001INV-001MODEL-AB").hexdigest()
+    expected_rid = hashlib.sha256(b"PO-001INV-001MODEL-A").hexdigest()
     assert record.receiving_id == expected_rid
 
 
@@ -193,3 +194,37 @@ def test_already_scanned_sparse_row_uses_field_defaults() -> None:
     assert record.brand == ""
     assert record.vendor == ""
     assert record.tags == ""
+
+
+# ── Adjacent-SKU regression (GATED) ──────────────────────────────────────────
+# ── Guards against reverting duplicate detection to fuzzy matching. ───────────
+
+
+def test_adjacent_sku_is_no_match_not_already_scanned() -> None:
+    """Adjacent SKU (HZ00 claimed, HZ01 scanned) must be no_match, never already_scanned.
+
+    WRF560SEHZ00 and WRF560SEHZ01 score ≈ 0.97 under SequenceMatcher — well above the
+    0.6 threshold. Fuzzy duplicate detection would wrongly return already_scanned and
+    suppress the emit; exact match correctly falls through to no_match and emits.
+
+    Mutation kill target: replacing '==' with find_best_match in the duplicate-detection
+    path causes this test to return already_scanned instead of no_match, failing the
+    match_status assertion and the emit-count assertion.
+    """
+    repo = FakeRepository()
+    sink = FakeResultSink()
+    repo.upsert_items([_make_candidate("INV-HZ00", "WRF560SEHZ00", "PO-001")])
+
+    # Claim the HZ00 unit.
+    first = process_scan("WRF560SEHZ00", "PO-001", repo, sink)
+    assert first.match_status == "received"
+    assert len(sink.emitted) == 1
+
+    # Scan the adjacent HZ01 SKU — must NOT be detected as a duplicate of HZ00.
+    second = process_scan("WRF560SEHZ01", "PO-001", repo, sink)
+    assert second.match_status == "no_match", (
+        f"adjacent SKU 'WRF560SEHZ01' must be no_match when only 'WRF560SEHZ00' is"
+        f" claimed, got '{second.match_status}' — duplicate detection may be using"
+        " fuzzy matching instead of exact match"
+    )
+    assert len(sink.emitted) == 2, "no_match for adjacent SKU must emit a board item"

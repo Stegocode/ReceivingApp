@@ -12,9 +12,10 @@ Claiming invariant: claim_and_save uses AND claimed_at IS NULL so a concurrent
 scan cannot steal an already-claimed row. Once claimed, the inventory_id is locked
 to this scan session (single-writer assumption — see boundary markers).
 
-Duplicate-scan invariant (T0-2): re-scanning an already-claimed barcode returns
-match_status='already_scanned' without saving or emitting — no spurious no_match
-is created on the board.
+Duplicate-scan invariant (T0-2): re-scanning an already-claimed barcode (exact
+model_number == barcode) returns match_status='already_scanned' without saving or
+emitting — no spurious no_match is created on the board. Exact match is required;
+fuzzy matching is only used for the unclaimed-candidate lookup above.
 """
 
 from __future__ import annotations
@@ -144,9 +145,11 @@ def process_scan(
     a crash cannot leave a unit claimed without a corresponding record (T0-1).
 
     Duplicate-scan path (T0-2): if no unclaimed candidate matches but the barcode
-    matches a claimed row for this PO, it is a re-scan of an already-received unit.
-    Returns match_status='already_scanned' without saving or emitting — no spurious
-    no_match appears on the board and the operator gets a distinct signal.
+    exactly equals a claimed row's model_number for this PO, it is a re-scan of an
+    already-received unit. Returns match_status='already_scanned' without saving or
+    emitting. Exact match is required — fuzzy matching must not be used here because
+    adjacent SKUs (e.g. WRF560SEHZ00 vs WRF560SEHZ01) score above the 0.6 threshold
+    and would be silently dropped as duplicates instead of emitting no_match.
 
     No-match is an expected outcome (match_status='no_match'), not an exception.
     Step order: claim_and_save (match) or save_record (no-match) → was_emitted
@@ -164,9 +167,8 @@ def process_scan(
 
     if matched is None:
         claimed = repository.claimed_for_po(po_number)
-        claimed_best, _ = find_best_match(barcode, [c["model_number"] for c in claimed])
-        if claimed_best:
-            dup_row = next(c for c in claimed if c["model_number"] == claimed_best)
+        dup_row = next((c for c in claimed if c["model_number"] == barcode), None)
+        if dup_row:
             logger.info(
                 "scan_duplicate barcode=%s po_number=%s inventory_id=%s",
                 barcode,
