@@ -202,8 +202,11 @@ def test_adapter_poll_ready_paginates_when_cursor_present(monkeypatch):
 # ── BoardApiAdapter.mark_received ─────────────────────────────────────────────
 
 
-def test_adapter_mark_received_moves_to_received_group_then_sets_status(monkeypatch):
-    """mark_received: first call moves to received group; second sets status to RECEIVED."""
+def test_adapter_mark_received_sets_status_first_then_moves(monkeypatch):
+    """mark_received: first call sets status to RECEIVED; second moves to received group.
+
+    Order matters for recoverability — see DEBT-BOARD-001 and mark_received docstring.
+    """
     adapter = _make_adapter()
     calls: list[dict] = []
 
@@ -215,11 +218,42 @@ def test_adapter_mark_received_moves_to_received_group_then_sets_status(monkeypa
     adapter.mark_received("item-42")
 
     assert len(calls) == 2
+    # First call must be the status-set mutation.
     assert calls[0]["variables"]["itemId"] == "item-42"
-    assert calls[0]["variables"]["groupId"] == "grp_recv"
+    assert calls[0]["variables"]["colId"] == "col_status"
+    assert "RECEIVED" in calls[0]["variables"]["value"]
+    # Second call must be the group-move mutation.
     assert calls[1]["variables"]["itemId"] == "item-42"
-    assert calls[1]["variables"]["colId"] == "col_status"
-    assert "RECEIVED" in calls[1]["variables"]["value"]
+    assert calls[1]["variables"]["groupId"] == "grp_recv"
+
+
+def test_adapter_mark_received_partial_failure_move_raises_board_error(monkeypatch):
+    """If status-set succeeds but the move raises, BoardError propagates (not swallowed).
+
+    Recoverable state after partial failure: item has status=RECEIVED but remains in
+    READY group — visible, re-queueable, and mark_received can be safely retried.
+    """
+    import requests as req_lib
+
+    adapter = _make_adapter()
+    calls: list[dict] = []
+
+    def fake_post(url, json, headers, timeout):
+        calls.append(json)
+        if len(calls) == 2:
+            raise req_lib.RequestException("network timeout on move")
+        return _ok_mutation_response()
+
+    monkeypatch.setattr("adapters.board.requests.post", fake_post)
+
+    with pytest.raises(BoardError):
+        adapter.mark_received("item-42")
+
+    # Both calls were issued: status-set succeeded, move failed.
+    assert len(calls) == 2
+    assert calls[0]["variables"]["colId"] == "col_status"
+    assert "RECEIVED" in calls[0]["variables"]["value"]
+    assert "groupId" in calls[1]["variables"]
 
 
 # ── BoardApiAdapter.mark_no_match ─────────────────────────────────────────────

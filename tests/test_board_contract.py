@@ -222,7 +222,7 @@ def test_mark_received_status_value_is_json_encoded_label_dict(
     monkeypatch.setattr("adapters.board.requests.post", fake_post)
     _make_adapter().mark_received("item-42")
 
-    status_call = calls[1]  # second call sets status
+    status_call = calls[0]  # status is set FIRST (DEBT-BOARD-001: status before move)
     value_str = status_call["variables"]["value"]
     value = __import__("json").loads(value_str)
     assert value == {"label": "RECEIVED"}
