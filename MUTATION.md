@@ -1,6 +1,6 @@
 # Accepted Equivalent Mutants
 
-Mutation score (real, post gate-fix): **79.2%** (839 killed / 221 survived / 0 not checked / 1060 checked).
+Mutation score (real, post PR-2a kill-tests): **79.6%** (871 killed / 223 survived / 0 not checked / 1094 checked).
 
 > **Gate was previously non-functional.** The `[tool.mutmut] also_copy` list omitted
 > `"schema"`, so every DB-backed test failed inside the mutant sandbox with
@@ -152,3 +152,16 @@ behaviorally; the log line only affects rotating-file output.
 
 **Category A (args removed):** `recv_dup_7`, `recv_dup_8`, `recv_dup_9`, `recv_dup_10`
 (format string or individual arg lines deleted)
+
+---
+
+## Category G: Two-tier resolver equivalents (core/matching.py — PR 2a)
+
+Two survivors from the two-tier resolver are unkillable without testing implementation
+rather than behavior.
+
+| Mutant | Mutation | Why equivalent |
+|--------|----------|----------------|
+| normalize_key (case) | `s.lower()` → `s.upper()` | `normalize_key` is only ever called to compare two keys for equality (`normalize_key(m) == barcode_key`). Uppercasing both sides produces identical comparisons — no observable difference. |
+| resolve_model AUTO branch | `candidates=[]` omitted | `MatchResult.candidates` defaults to `field(default_factory=list)`, so omitting the kwarg yields an identical empty list. Any test asserting `r.candidates == []` passes either way. |
+| resolve_model PROPOSE branch | `candidates=[]` omitted | Same reasoning as the AUTO branch — `MatchResult.candidates` defaults to `[]`, so the kwarg is redundant. Identical observable behavior. |

@@ -322,3 +322,28 @@ def test_resolve_tier1_hyphenated_variant_barcode_auto() -> None:
     assert result.status is MatchStatus.AUTO
     assert result.model == "B36-CL80-SNS-X"
     assert result.candidates == []
+
+
+def test_two_models_normalize_to_same_key_prompt() -> None:
+    """Two PO models that collapse to the same normalize_key → Tier-1 returns NEEDS_INPUT.
+
+    IC-30R-RH and IC30R-RH both normalize to "ic30rrh" — two exact matches → NEEDS_INPUT.
+    Kills mutmut survivors on the len(exact) >= 2 branch: the >=2 boundary, the status
+    value, the candidates list, and the required keyword arguments.
+    """
+    r = resolve_model("IC30R-RH", ["IC-30R-RH", "IC30R-RH"])
+    assert r.status is MatchStatus.NEEDS_INPUT
+    assert r.model is None
+    assert r.candidates == ["IC-30R-RH", "IC30R-RH"]
+
+
+def test_space_variant_exact_matches_and_autos() -> None:
+    """Space-separated barcode exact-matches a space-free model after normalize_key strips spaces.
+
+    normalize_key("DEC 3050 R") = "dec3050r" = normalize_key("DEC3050R") → 1 exact → AUTO.
+    Without space-stripping the key would be "dec 3050 r" ≠ "dec3050r", falling to the
+    walk → PROPOSE. Kills normalize_key space-strip mutants (mutmut 12, 13).
+    """
+    r = resolve_model("DEC 3050 R", ["DEC3050R"])
+    assert r.status is MatchStatus.AUTO
+    assert r.model == "DEC3050R"
