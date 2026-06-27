@@ -219,6 +219,21 @@ stayed at 2.
 Trigger: before either counter advances again; resolve in a focused PR touching core/schema.py and
 possibly migration/validation logic — not a rider on an unrelated PR.
 
+[DEBT-MUTGATE-001] 2026-06-26 — 232 mutation survivors need triage after gate was blind.
+The mutation gate was non-functional (schema/ not copied into the mutant sandbox), so all
+mutants generated while the gate was broken were never actually tested. The real score is
+78.8% (862 killed / 1094 checked) — barely above the 78% threshold. The 232 survivors
+include both genuine equivalents and potentially killable gaps from code merged while the
+gate was blind. They must be triaged to separate accepted equivalents from gaps that need
+new tests. The old 151-survivor classification in MUTATION.md was produced under the broken
+gate and should be treated as a starting point only, not authoritative.
+Why: code merged during the blind period was never mutation-tested; the survivor count
+roughly doubled (116 → 232) compared to the last honest run.
+How to apply: before the next matching/services change, run a dedicated triage pass —
+categorise survivors by category (log-format, inert default, dead branch, killable gap)
+and add tests for any killable gaps. Trigger: next PR touching core/ or services/, or a
+dedicated cleanup pass.
+
 [BUG-SOURCE-CSV-001] 2026-06-25 — _parse_on_order_csv (adapters/source.py) does not validate required CSV headers.
 If the portal renames "PO #", "Model", or "Inventory Id", the parser silently degrades: a renamed
 "PO #" or "Model" column causes every row to return with an empty purchase_order or model_number
