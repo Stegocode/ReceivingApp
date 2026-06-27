@@ -15,6 +15,9 @@ Mutation targets (mutmut must kill every one of these mutants):
     would auto-pick from the ambiguous set in test_resolve_ambiguous_two_or_more_is_needs_input.
   - Empty-input guard: a mutant dropping `if not model or not barcode` allows empty
     model "" to match any barcode in test_empty_model_returns_false.
+  - Prefix normalization: a mutant removing normalize_key from the prefix-collision check
+    (comparing raw strings) leaves the hyphenated collision undetected and AUTO,
+    killed by test_resolve_prefix_collision_hyphenated_variant_needs_input.
 """
 
 from __future__ import annotations
@@ -188,3 +191,69 @@ def test_resolve_single_model_on_po_that_does_not_match_is_needs_input() -> None
     assert result.status is MatchStatus.NEEDS_INPUT
     assert result.model is None
     assert result.candidates == []
+
+
+# ── resolve_model — prefix-collision guard (normalization-aware) ──────────────
+
+
+def test_resolve_prefix_collision_hyphenated_variant_needs_input() -> None:
+    """BUG FIX: hyphenated variant must trigger the normalization-aware prefix-collision guard.
+
+    PO models: "B36CL80SNS" and "B36-CL80-SNS-X".
+    normalize_key collapses both: "b36cl80sns" is a prefix of "b36cl80snsx" → collision.
+    Barcode "B36CL80SNSX" only completes the walk for "B36CL80SNS" (no hyphens to skip).
+    Without normalize_key the raw check "B36-CL80-SNS-X".startswith("B36CL80SNS") is False
+    → no collision detected → AUTO. The guard must catch it → NEEDS_INPUT.
+
+    Mutmut kill: removing normalize_key from the prefix check (comparing raw strings) leaves
+    the collision undetected and AUTO, which fails this assertion.
+    """
+    result = resolve_model("B36CL80SNSX", ["B36CL80SNS", "B36-CL80-SNS-X"])
+    assert result.status is MatchStatus.NEEDS_INPUT
+    assert result.model is None
+
+
+def test_resolve_prefix_collision_wrf_hyphenated_variant_needs_input() -> None:
+    """Hyphenated variant collision: WRF560 is a normalized prefix of WRF-560-SEHZ00."""
+    result = resolve_model("WRF560SEHZ00", ["WRF560", "WRF-560-SEHZ00"])
+    assert result.status is MatchStatus.NEEDS_INPUT
+    assert result.model is None
+
+
+def test_resolve_single_model_no_prefix_collision_auto() -> None:
+    """REGRESSION: single PO model — no collision possible; base-prefix barcode → AUTO."""
+    result = resolve_model("WRF560SEHZ00", ["WRF560"])
+    assert result.status is MatchStatus.AUTO
+    assert result.model == "WRF560"
+
+
+def test_resolve_twins_no_prefix_collision_clean_barcode_auto() -> None:
+    """REGRESSION: SHX78CM5N/SHP78CM5N — neither normalized key is a prefix of the other.
+
+    normalize_key("SHX78CM5N") = "shx78cm5n"
+    normalize_key("SHP78CM5N") = "shp78cm5n"
+    "shx78cm5n".startswith("shp78cm5n") → False (and vice versa) → no collision.
+    Non-prefix twins must not be made to collide by normalization.
+    """
+    result = resolve_model("SHX78CM5N", ["SHX78CM5N", "SHP78CM5N"])
+    assert result.status is MatchStatus.AUTO
+    assert result.model == "SHX78CM5N"
+
+
+def test_resolve_twins_no_prefix_collision_twin_barcode_needs_input() -> None:
+    """REGRESSION: pathological twin barcode completes both walks → NEEDS_INPUT (walk behavior)."""
+    result = resolve_model("SHXP78CM5N", ["SHX78CM5N", "SHP78CM5N"])
+    assert result.status is MatchStatus.NEEDS_INPUT
+    assert result.model is None
+    assert sorted(result.candidates) == ["SHP78CM5N", "SHX78CM5N"]
+
+
+def test_resolve_raw_prefix_collision_still_needs_input() -> None:
+    """REGRESSION: raw prefix collision (no hyphens) still triggers guard → NEEDS_INPUT.
+
+    PO=["ABC", "ABCXYZ"]: "abc" is a prefix of "abcxyz" even without any hyphens.
+    Barcode "ABC" matches only "ABC" via walk; the prefix guard fires → NEEDS_INPUT.
+    """
+    result = resolve_model("ABC", ["ABC", "ABCXYZ"])
+    assert result.status is MatchStatus.NEEDS_INPUT
+    assert result.model is None

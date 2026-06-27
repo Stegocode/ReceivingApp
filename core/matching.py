@@ -24,6 +24,16 @@ def normalize(s: str) -> str:
     return " ".join(s.split()).lower()
 
 
+def normalize_key(s: str) -> str:
+    """Normalize for structural key comparison: lowercase, remove spaces and hyphens.
+
+    Used exclusively by the prefix-collision guard in resolve_model so that
+    punctuation variants (e.g. "B36-CL80-SNS-X") collapse to the same key as
+    their hyphen-free counterpart ("B36CL80SNSX") before prefix/startswith tests.
+    """
+    return s.lower().replace("-", "").replace(" ", "")
+
+
 def match_score(barcode: str, candidate_model: str) -> float:
     """SequenceMatcher ratio on normalized forms of barcode and candidate_model."""
     a = normalize(barcode)
@@ -113,13 +123,28 @@ def model_matches_barcode(model: str, barcode: str) -> bool:
 def resolve_model(barcode: str, po_models: list[str]) -> MatchResult:
     """Run model_matches_barcode for every model on the PO and return a typed MatchResult.
 
-    EXACTLY ONE match  → AUTO(model=..., candidates=[])
-    ZERO matches       → NEEDS_INPUT(model=None, candidates=[])
-    TWO OR MORE matches → NEEDS_INPUT(model=None, candidates=[all matched])
+    EXACTLY ONE match, not prefix-ambiguous → AUTO(model=..., candidates=[])
+    ZERO matches                            → NEEDS_INPUT(model=None, candidates=[])
+    TWO OR MORE matches                     → NEEDS_INPUT(model=None, candidates=[all matched])
+    ONE match but prefix-ambiguous          → NEEDS_INPUT(model=None, candidates=[matched])
+
+    Prefix-collision guard: before evaluating walk results, normalize every PO model
+    with normalize_key (lowercase, strip spaces and hyphens). If any two normalized
+    keys share a prefix relationship, the shorter model is marked prefix-ambiguous.
+    A single walk-match on a prefix-ambiguous model returns NEEDS_INPUT rather than
+    AUTO, preventing auto-bind of a base SKU when the scanned unit is a variant
+    whose model differs only in punctuation (e.g. "B36-CL80-SNS-X" vs "B36CL80SNS").
 
     Never auto-picks when multiple models match. Always returns a MatchResult — never None.
     """
+    norm_keys = [normalize_key(m) for m in po_models]
+    prefix_ambiguous: set[str] = set()
+    for i, m1 in enumerate(po_models):
+        for j in range(len(po_models)):
+            if i != j and norm_keys[j].startswith(norm_keys[i]) and norm_keys[i] != norm_keys[j]:
+                prefix_ambiguous.add(m1)
+
     matched = [m for m in po_models if model_matches_barcode(m, barcode)]
-    if len(matched) == 1:
+    if len(matched) == 1 and matched[0] not in prefix_ambiguous:
         return MatchResult(status=MatchStatus.AUTO, model=matched[0], candidates=[])
     return MatchResult(status=MatchStatus.NEEDS_INPUT, model=None, candidates=matched)
