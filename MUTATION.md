@@ -1,6 +1,6 @@
 # Accepted Equivalent Mutants
 
-Mutation score after fix/exact-model-match (T2b): **PENDING** — see below.
+Mutation score after fix/exact-model-match (T2b): **79.2%** (850 killed / 223 survived / 1073 checked / 0 not_checked).
 
 > **Gate was previously non-functional** (fixed in fix/mutation-gate-integrity, PR #60):
 > `[tool.mutmut] also_copy` omitted `"schema"`, so DB-backed tests failed inside the
