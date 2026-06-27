@@ -14,8 +14,8 @@ not_measured: live portal timing, real board API mutations, real browser behavio
               See DEBT.md [DEBT-T14-001, DEBT-T1-4a-001].
 
 Boundary: single-writer; consecutive_failures counter is per-run (starts at 0, not persisted).
-          Items are sorted ascending by numeric inventory_id before dispatch — HomeSource fills
-          a model's open IDs lowest-first; serial must bind to the correct ID.
+          Items are sorted ascending by numeric inventory_id before dispatch — the receiving
+          system fills a model's open IDs lowest-first; serial must bind to the correct ID.
           Non-numeric inventory_ids log a warning and sort after all numeric items.
           Manual recovery: operator sets item status back to 'ready' to re-feed.
 """
@@ -80,7 +80,7 @@ def receive_pending(
 ) -> ReceiveResult:
     """Poll READY items, sort by numeric inventory_id ascending, and drive the executor.
 
-    HomeSource fills a model's open inventory IDs lowest-first; serials must arrive in
+    The receiving system fills a model's open inventory IDs lowest-first; serials must arrive in
     that same order so each serial binds to the correct ID.  Items whose inventory_id
     cannot be parsed as an integer log a warning and sort after all numeric items.
 

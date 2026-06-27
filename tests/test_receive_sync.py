@@ -179,7 +179,7 @@ def test_ascending_id_order_reverse_input() -> None:
     descending-sort mutant (descending result ≠ ascending assertion).
     not_measured: live board API ordering guarantees.
     """
-    # Monday board returns newest (highest ID) first — opposite of HomeSource's expectation.
+    # Monday board returns newest (highest ID) first — opposite of the receiving system's order.
     ids = ["18985", "18983", "18977", "18976"]
     items = [_item(f"I{iid}", iid) for iid in ids]
     board = FakeBoard(ready_items=items)
